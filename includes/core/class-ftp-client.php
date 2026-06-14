@@ -1,0 +1,137 @@
+<?php
+namespace KeyCDN\Offload\Core;
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class FtpException extends \RuntimeException {}
+
+class FtpClient {
+
+    private Credentials $credentials;
+
+    /** @var resource|false */
+    private $conn = false;
+
+    /** Threshold in bytes above which ftp_fput() streaming is used. */
+    private int $large_file_threshold;
+
+    public function __construct( Credentials $credentials ) {
+        $this->credentials          = $credentials;
+        $this->large_file_threshold = (int) get_option( 'keycdn_offload_large_file_mb', 50 ) * 1024 * 1024;
+    }
+
+    public function connect(): void {
+        if ( $this->conn ) {
+            return;
+        }
+        $host = $this->credentials->get_ftp_host();
+        $conn = @ftp_ssl_connect( $host, 21, 30 );
+        if ( false === $conn ) {
+            throw new FtpException( "Could not connect to FTP host: {$host}" );
+        }
+        $user = $this->credentials->get_ftp_user();
+        $pass = $this->credentials->get_ftp_pass();
+        if ( ! @ftp_login( $conn, $user, $pass ) ) {
+            ftp_close( $conn );
+            throw new FtpException( 'FTP login failed. Check subuser credentials.' );
+        }
+        if ( ! @ftp_pasv( $conn, true ) ) {
+            ftp_close( $conn );
+            throw new FtpException( 'Failed to enable passive mode.' );
+        }
+        // Needed for FTPS behind NAT — prevents server returning its internal IP.
+        @ftp_set_option( $conn, FTP_USEPASVADDRESS, false );
+        $this->conn = $conn;
+    }
+
+    public function disconnect(): void {
+        if ( $this->conn ) {
+            @ftp_close( $this->conn );
+            $this->conn = false;
+        }
+    }
+
+    /**
+     * Upload a local file to a remote path.
+     * Uses ftp_fput() (streaming) for large files, ftp_put() for small ones.
+     */
+    public function put( string $local_path, string $remote_path ): void {
+        $this->connect();
+        $this->ensure_remote_dir( dirname( $remote_path ) );
+
+        $size = filesize( $local_path );
+
+        if ( $size >= $this->large_file_threshold ) {
+            $handle = fopen( $local_path, 'rb' );
+            if ( ! $handle ) {
+                throw new FtpException( "Cannot open local file for streaming: {$local_path}" );
+            }
+            $result = @ftp_fput( $this->conn, $remote_path, $handle, FTP_BINARY );
+            fclose( $handle );
+        } else {
+            $result = @ftp_put( $this->conn, $remote_path, $local_path, FTP_BINARY );
+        }
+
+        if ( ! $result ) {
+            throw new FtpException( "FTP put failed for remote path: {$remote_path}" );
+        }
+    }
+
+    /**
+     * Verify upload by comparing remote size with local filesize.
+     */
+    public function verify( string $remote_path, int $expected_bytes ): bool {
+        $this->connect();
+        $remote_size = @ftp_size( $this->conn, $remote_path );
+        if ( $remote_size < 0 ) {
+            return false;
+        }
+        if ( $expected_bytes > 0 && $remote_size === 0 ) {
+            return false;
+        }
+        return $remote_size === $expected_bytes;
+    }
+
+    public function delete( string $remote_path ): void {
+        $this->connect();
+        // ftp_delete returns false if file doesn't exist — treat as success (already gone).
+        @ftp_delete( $this->conn, $remote_path );
+    }
+
+    /**
+     * List a remote directory. Tries ftp_mlsd first (rich metadata), falls back to ftp_nlist.
+     */
+    public function list_dir( string $remote_dir ): array {
+        $this->connect();
+        if ( function_exists( 'ftp_mlsd' ) ) {
+            $entries = @ftp_mlsd( $this->conn, $remote_dir );
+            if ( false !== $entries ) {
+                return $entries;
+            }
+        }
+        $list = @ftp_nlist( $this->conn, $remote_dir );
+        if ( false === $list ) {
+            return [];
+        }
+        return array_map( fn( $name ) => [ 'name' => basename( $name ) ], $list );
+    }
+
+    /**
+     * Recursively create remote directories as needed.
+     */
+    private function ensure_remote_dir( string $remote_dir ): void {
+        if ( '/' === $remote_dir || '' === $remote_dir ) {
+            return;
+        }
+        // Try to change into the dir; if that fails, ensure parent then create.
+        if ( @ftp_chdir( $this->conn, $remote_dir ) ) {
+            @ftp_chdir( $this->conn, '/' );
+            return;
+        }
+        $this->ensure_remote_dir( dirname( $remote_dir ) );
+        @ftp_mkdir( $this->conn, $remote_dir );
+        @ftp_chdir( $this->conn, '/' );
+    }
+}

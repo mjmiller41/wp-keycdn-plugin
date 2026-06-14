@@ -1,0 +1,14 @@
+{
+    "name": "mjmiller41/wp-keycdn-offload",
+    "description": "WordPress media offload to KeyCDN Push Zones via FTPS",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "KeyCDN\\Offload\\": "includes/"
+        }
+    },
+    "require": {
+        "php": ">=7.4"
+    }
+}
