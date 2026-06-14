@@ -70,11 +70,25 @@ class BulkOffload {
     }
 
     public function get_progress(): array {
+        global $wpdb;
+        $table   = Manifest::table_name();
+        $blog_id = (int) get_current_blog_id();
+
+        $confirmed_in = "'" . implode( "','", [ StateMachine::CONFIRMED, StateMachine::LOCAL_REMOVED ] ) . "'";
+        $failed_in    = "'" . implode( "','", [ StateMachine::FAILED, StateMachine::QUARANTINED ] ) . "'";
+
+        $completed = (int) $wpdb->get_var(
+            "SELECT COUNT(DISTINCT attachment_id) FROM {$table} WHERE state IN ({$confirmed_in}) AND blog_id = {$blog_id}"
+        );
+        $failed = (int) $wpdb->get_var(
+            "SELECT COUNT(DISTINCT attachment_id) FROM {$table} WHERE state IN ({$failed_in}) AND blog_id = {$blog_id}"
+        );
+
         return [
             'status'    => get_option( 'keycdn_offload_bulk_status', 'idle' ),
             'total'     => (int) get_option( 'keycdn_offload_bulk_total', 0 ),
-            'completed' => (int) get_option( 'keycdn_offload_bulk_completed', 0 ),
-            'failed'    => (int) get_option( 'keycdn_offload_bulk_failed', 0 ),
+            'completed' => $completed,
+            'failed'    => $failed,
         ];
     }
 

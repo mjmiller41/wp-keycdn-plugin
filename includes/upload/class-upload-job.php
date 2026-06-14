@@ -40,15 +40,14 @@ class UploadJob {
 
         try {
             $this->ftp->connect();
+            foreach ( $files as $size_slug => $local_path ) {
+                $this->upload_file( $attachment_id, $size_slug, $local_path );
+            }
         } catch ( FtpException $e ) {
             throw new \RuntimeException( 'FTP connect failed: ' . $e->getMessage(), 0, $e );
+        } finally {
+            $this->ftp->disconnect();
         }
-
-        foreach ( $files as $size_slug => $local_path ) {
-            $this->upload_file( $attachment_id, $size_slug, $local_path );
-        }
-
-        $this->ftp->disconnect();
     }
 
     private function collect_files( int $attachment_id, $meta, string $base_dir ): array {

@@ -130,21 +130,50 @@ class FtpClient {
     }
 
     /**
-     * List a remote directory. Tries ftp_mlsd first (rich metadata), falls back to ftp_nlist.
+     * List a remote directory.
+     * 1. ftp_mlsd  — richest metadata, includes type (dir/file).
+     * 2. ftp_rawlist — Unix ls -l format; first char 'd' = directory.
+     * 3. ftp_nlist — last resort; no type info, everything treated as file.
      */
     public function list_dir( string $remote_dir ): array {
         $this->connect();
+
         if ( function_exists( 'ftp_mlsd' ) ) {
             $entries = @ftp_mlsd( $this->conn, $remote_dir );
             if ( false !== $entries ) {
                 return $entries;
             }
         }
+
+        $raw = @ftp_rawlist( $this->conn, $remote_dir );
+        if ( false !== $raw && is_array( $raw ) ) {
+            $entries = [];
+            foreach ( $raw as $line ) {
+                if ( empty( $line ) ) {
+                    continue;
+                }
+                $parts = preg_split( '/\s+/', ltrim( $line ), 9 );
+                if ( count( $parts ) < 9 ) {
+                    continue;
+                }
+                $name = $parts[8];
+                if ( in_array( $name, [ '.', '..' ], true ) ) {
+                    continue;
+                }
+                $entries[] = [
+                    'name' => $name,
+                    'type' => str_starts_with( $parts[0], 'd' ) ? 'dir' : 'file',
+                    'size' => (int) $parts[4],
+                ];
+            }
+            return $entries;
+        }
+
         $list = @ftp_nlist( $this->conn, $remote_dir );
         if ( false === $list ) {
             return [];
         }
-        return array_map( fn( $name ) => [ 'name' => basename( $name ) ], $list );
+        return array_map( fn( $name ) => [ 'name' => basename( $name ), 'type' => 'file' ], $list );
     }
 
     /**
