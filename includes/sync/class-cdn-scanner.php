@@ -78,14 +78,20 @@ class CdnScanner {
         );
 
         if ( ! $attachment_id ) {
-            // Import as new attachment with no local file.
-            $zone_url  = get_option( 'keycdn_offload_zone_url', '' );
-            $cdn_url   = rtrim( $zone_url, '/' ) . '/' . ltrim( $remote_path, '/' );
-            $args      = [
-                'post_title'   => pathinfo( $filename, PATHINFO_FILENAME ),
-                'post_status'  => 'inherit',
-                'post_type'    => 'attachment',
-                'guid'         => $cdn_url,
+            // Derive the uploads-relative path (strip optional zone subdir prefix).
+            $subdir   = get_option( 'keycdn_offload_zone_subdir', '' );
+            $rel_path = ltrim( $remote_path, '/' );
+            if ( $subdir && 0 === strpos( $rel_path, trailingslashit( $subdir ) ) ) {
+                $rel_path = substr( $rel_path, strlen( trailingslashit( $subdir ) ) );
+            }
+
+            $zone_url = get_option( 'keycdn_offload_zone_url', '' );
+            $cdn_url  = rtrim( $zone_url, '/' ) . '/' . ltrim( $remote_path, '/' );
+            $args     = [
+                'post_title'     => pathinfo( $filename, PATHINFO_FILENAME ),
+                'post_status'    => 'inherit',
+                'post_type'      => 'attachment',
+                'guid'           => $cdn_url,
                 'post_mime_type' => wp_check_filetype( $filename )['type'] ?: 'application/octet-stream',
             ];
             $attachment_id = wp_insert_post( $args );
@@ -93,11 +99,21 @@ class CdnScanner {
                 return;
             }
             update_post_meta( $attachment_id, '_keycdn_offloaded_url', $cdn_url );
+            // Required so WordPress can resolve thumbnail URLs and future scans can find this record.
+            update_post_meta( $attachment_id, '_wp_attached_file', $rel_path );
+
+            // Generate full attachment metadata if the original file still exists locally.
+            $upload_dir = wp_upload_dir();
+            $local_path = trailingslashit( $upload_dir['basedir'] ) . $rel_path;
+            if ( file_exists( $local_path ) ) {
+                require_once ABSPATH . 'wp-admin/includes/image.php';
+                $meta = wp_generate_attachment_metadata( (int) $attachment_id, $local_path );
+                wp_update_attachment_metadata( (int) $attachment_id, $meta );
+            }
         }
 
         // Insert manifest row as already confirmed.
         $row_id = $this->manifest->insert( (int) $attachment_id, 'full', $remote_path, '', $byte_size, '', '' );
-        global $wpdb;
         $wpdb->update(
             Manifest::table_name(),
             [ 'state' => StateMachine::CONFIRMED, 'last_verified_at' => current_time( 'mysql', true ) ],

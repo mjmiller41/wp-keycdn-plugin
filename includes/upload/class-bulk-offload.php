@@ -37,17 +37,20 @@ class BulkOffload {
 
     /**
      * Action Scheduler callback for 'keycdn_bulk_page'.
+     *
+     * Always queries from offset 0 and excludes already-queued or already-offloaded IDs.
+     * Using paged+offset with a growing post__not_in causes attachments to be skipped
+     * as the exclude list grows and the result set shrinks between pages.
      */
     public function handle_page( int $page, int $batch_size, string $run_id ): void {
-        $offloaded_ids = $this->get_offloaded_attachment_ids();
+        $exclude_ids = $this->get_in_progress_or_offloaded_ids();
         $query = new \WP_Query( [
             'post_type'      => 'attachment',
             'post_status'    => 'inherit',
             'fields'         => 'ids',
             'no_found_rows'  => true,
             'posts_per_page' => $batch_size,
-            'paged'          => $page,
-            'post__not_in'   => $offloaded_ids,
+            'post__not_in'   => $exclude_ids,
         ] );
 
         if ( empty( $query->posts ) ) {
@@ -59,7 +62,6 @@ class BulkOffload {
             $this->manager->enqueue_attachment( (int) $attachment_id );
         }
 
-        // Enqueue the next page.
         as_enqueue_async_action(
             'keycdn_bulk_page',
             [ 'page' => $page + 1, 'batch_size' => $batch_size, 'run_id' => $run_id ],
@@ -93,6 +95,26 @@ class BulkOffload {
         $table  = Manifest::table_name();
         $states = implode( "','", [ StateMachine::CONFIRMED, StateMachine::LOCAL_REMOVED ] );
         $rows   = $wpdb->get_col(
+            "SELECT DISTINCT attachment_id FROM {$table} WHERE state IN ('{$states}') AND blog_id = " . (int) get_current_blog_id()
+        );
+        return array_map( 'intval', $rows );
+    }
+
+    /**
+     * IDs to exclude from bulk page queries: anything already processing or done.
+     * FAILED and QUARANTINED are intentionally omitted so bulk retries them.
+     */
+    private function get_in_progress_or_offloaded_ids(): array {
+        global $wpdb;
+        $table  = Manifest::table_name();
+        $states = implode( "','", [
+            StateMachine::PENDING,
+            StateMachine::UPLOADING,
+            StateMachine::VERIFYING,
+            StateMachine::CONFIRMED,
+            StateMachine::LOCAL_REMOVED,
+        ] );
+        $rows = $wpdb->get_col(
             "SELECT DISTINCT attachment_id FROM {$table} WHERE state IN ('{$states}') AND blog_id = " . (int) get_current_blog_id()
         );
         return array_map( 'intval', $rows );
