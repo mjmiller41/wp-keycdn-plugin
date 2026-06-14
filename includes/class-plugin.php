@@ -108,6 +108,7 @@ class Plugin {
         $this->loader->add_action( 'admin_menu',              $admin,    'add_menu_pages',        10, 0 );
         $this->loader->add_action( 'admin_enqueue_scripts',   $admin,    'enqueue_scripts',       10, 1 );
         $this->loader->add_action( 'admin_notices',           $admin,    'show_activation_notice', 10, 0 );
+        $this->loader->add_filter( 'plugin_action_links_' . plugin_basename( KEYCDN_OFFLOAD_FILE ), $admin, 'add_plugin_action_links', 10, 1 );
         $this->loader->add_action( 'admin_init',              $settings, 'register_settings',     10, 0 );
         $this->loader->add_action( 'wp_ajax_keycdn_start_bulk',      $ajax, 'start_bulk',       10, 0 );
         $this->loader->add_action( 'wp_ajax_keycdn_bulk_progress',   $ajax, 'bulk_progress',    10, 0 );

@@ -8,8 +8,15 @@ if ( ! defined( 'ABSPATH' ) ) {
     <h1><?php esc_html_e( 'KeyCDN Offload — Settings', 'wp-keycdn-offload' ); ?></h1>
 
     <?php if ( $using_constants ) : ?>
-        <div class="notice notice-info">
-            <p><?php esc_html_e( 'FTP credentials and Zone URL are defined as constants in wp-config.php. The fields below are read-only.', 'wp-keycdn-offload' ); ?></p>
+        <div class="notice notice-info inline">
+            <p>
+                <?php esc_html_e( 'FTP credentials and Zone URL are defined as constants in wp-config.php and cannot be edited here.', 'wp-keycdn-offload' ); ?>
+                <?php if ( $credentials->is_configured() ) : ?>
+                    <span style="color:#46b450;font-weight:600;">&#10003; <?php esc_html_e( 'Credentials configured.', 'wp-keycdn-offload' ); ?></span>
+                <?php else : ?>
+                    <span style="color:#dc3232;font-weight:600;">&#10007; <?php esc_html_e( 'Credentials incomplete — check KEYCDN_ZONE_URL, KEYCDN_FTP_USER, and KEYCDN_FTP_PASS in wp-config.php.', 'wp-keycdn-offload' ); ?></span>
+                <?php endif; ?>
+            </p>
         </div>
     <?php endif; ?>
 

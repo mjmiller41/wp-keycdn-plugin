@@ -19,13 +19,18 @@ class SettingsPage {
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_zone_url',       [ 'sanitize_callback' => 'esc_url_raw' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_ftp_host',       [ 'sanitize_callback' => 'sanitize_text_field' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_ftp_user',       [ 'sanitize_callback' => 'sanitize_text_field' ] );
-        register_setting( 'keycdn_offload_settings', 'keycdn_offload_ftp_pass_new',   [ 'sanitize_callback' => [ $this, 'save_password' ] ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_auto_offload',   [ 'sanitize_callback' => 'rest_sanitize_boolean' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_remove_local',   [ 'sanitize_callback' => 'rest_sanitize_boolean' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_trash_ttl_days', [ 'sanitize_callback' => 'absint' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_large_file_mb',  [ 'sanitize_callback' => 'absint' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_woo_compat',     [ 'sanitize_callback' => 'rest_sanitize_boolean' ] );
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_zone_subdir',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
+
+        // Only register the password field when it is actually shown — avoids a PHP 8 TypeError
+        // when the field is absent from POST because KEYCDN_FTP_PASS is defined as a constant.
+        if ( ! defined( 'KEYCDN_FTP_PASS' ) ) {
+            register_setting( 'keycdn_offload_settings', 'keycdn_offload_ftp_pass_new', [ 'sanitize_callback' => [ $this, 'save_password' ] ] );
+        }
     }
 
     public function save_password( string $value ): string {
@@ -42,6 +47,7 @@ class SettingsPage {
             return;
         }
         $using_constants = defined( 'KEYCDN_FTP_USER' ) && defined( 'KEYCDN_FTP_PASS' ) && defined( 'KEYCDN_ZONE_URL' );
+        $credentials     = $this->credentials;
         include KEYCDN_OFFLOAD_PATH . 'templates/settings-page.php';
     }
 }

@@ -83,6 +83,16 @@ class Admin {
         }
     }
 
+    public function add_plugin_action_links( array $links ): array {
+        $settings = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url( admin_url( 'admin.php?page=keycdn-offload' ) ),
+            esc_html__( 'Settings', 'wp-keycdn-offload' )
+        );
+        array_unshift( $links, $settings );
+        return $links;
+    }
+
     public function show_activation_notice(): void {
         if ( ! get_transient( 'keycdn_offload_activated' ) ) {
             return;
