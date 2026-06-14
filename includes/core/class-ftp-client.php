@@ -26,34 +26,49 @@ class FtpClient {
         if ( $this->conn ) {
             return;
         }
-        $host = $this->credentials->get_ftp_host();
-        $conn = @ftp_ssl_connect( $host, 21, 30 );
-        if ( false === $conn ) {
-            throw new FtpException( "Could not connect to FTP host: {$host}" );
-        }
-        $user        = $this->credentials->get_ftp_user();
-        $pass        = $this->credentials->get_ftp_pass();
-        $ftp_warning = null;
-        set_error_handler( function ( $errno, $errstr ) use ( &$ftp_warning ) {
-            $ftp_warning = $errstr;
-            return true;
-        } );
-        $login_ok = ftp_login( $conn, $user, $pass );
-        restore_error_handler();
-        if ( ! $login_ok ) {
-            ftp_close( $conn );
-            if ( $ftp_warning && strpos( $ftp_warning, '421' ) !== false ) {
-                throw new FtpException( 'FTP connection limit reached — too many simultaneous connections. Try again in a minute.' );
+        $host        = $this->credentials->get_ftp_host();
+        $max_retries = 3;
+
+        for ( $attempt = 1; $attempt <= $max_retries; $attempt++ ) {
+            $conn = @ftp_ssl_connect( $host, 21, 30 );
+            if ( false === $conn ) {
+                throw new FtpException( "Could not connect to FTP host: {$host}" );
             }
-            throw new FtpException( 'FTP login failed. Check subuser credentials.' );
+
+            $user        = $this->credentials->get_ftp_user();
+            $pass        = $this->credentials->get_ftp_pass();
+            $ftp_warning = null;
+            set_error_handler( function ( $errno, $errstr ) use ( &$ftp_warning ) {
+                $ftp_warning = $errstr;
+                return true;
+            } );
+            $login_ok = ftp_login( $conn, $user, $pass );
+            restore_error_handler();
+
+            if ( ! $login_ok ) {
+                ftp_close( $conn );
+                if ( $ftp_warning && strpos( $ftp_warning, '421' ) !== false ) {
+                    if ( $attempt < $max_retries ) {
+                        sleep( 3 );
+                        continue;
+                    }
+                    throw new FtpException(
+                        'FTP connection limit reached — KeyCDN allows max 3 simultaneous connections per subuser. ' .
+                        'Check your KeyCDN dashboard for stuck sessions, or wait a few minutes and try again.'
+                    );
+                }
+                throw new FtpException( 'FTP login failed. Check subuser credentials.' );
+            }
+
+            if ( ! @ftp_pasv( $conn, true ) ) {
+                ftp_close( $conn );
+                throw new FtpException( 'Failed to enable passive mode.' );
+            }
+            // Needed for FTPS behind NAT — prevents server returning its internal IP.
+            @ftp_set_option( $conn, FTP_USEPASVADDRESS, false );
+            $this->conn = $conn;
+            return;
         }
-        if ( ! @ftp_pasv( $conn, true ) ) {
-            ftp_close( $conn );
-            throw new FtpException( 'Failed to enable passive mode.' );
-        }
-        // Needed for FTPS behind NAT — prevents server returning its internal IP.
-        @ftp_set_option( $conn, FTP_USEPASVADDRESS, false );
-        $this->conn = $conn;
     }
 
     public function disconnect(): void {
@@ -61,6 +76,10 @@ class FtpClient {
             @ftp_close( $this->conn );
             $this->conn = false;
         }
+    }
+
+    public function __destruct() {
+        $this->disconnect();
     }
 
     /**
