@@ -50,6 +50,16 @@ if ( ! defined( 'ABSPATH' ) ) {
             </tr>
             <?php endif; ?>
             <tr>
+                <th scope="row"><?php esc_html_e( 'Test Connection', 'wp-keycdn-offload' ); ?></th>
+                <td>
+                    <button type="button" id="keycdn-test-connection" class="button">
+                        <?php esc_html_e( 'Test Connection', 'wp-keycdn-offload' ); ?>
+                    </button>
+                    <div id="keycdn-test-result" class="notice notice-inline" style="display:none;margin-top:8px;padding:6px 12px;"></div>
+                    <p class="description"><?php esc_html_e( 'Save your settings first, then click to verify the FTP connection.', 'wp-keycdn-offload' ); ?></p>
+                </td>
+            </tr>
+            <tr>
                 <th scope="row"><label for="keycdn_zone_subdir"><?php esc_html_e( 'Zone Subdirectory', 'wp-keycdn-offload' ); ?></label></th>
                 <td><input type="text" id="keycdn_zone_subdir" name="keycdn_offload_zone_subdir"
                     value="<?php echo esc_attr( get_option( 'keycdn_offload_zone_subdir', '' ) ); ?>"

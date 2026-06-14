@@ -64,7 +64,7 @@ class Plugin {
         $bulk_page     = new BulkPage();
         $status_page   = new StatusPage( $manifest );
         $admin         = new Admin( $settings_page, $bulk_page, $status_page );
-        $ajax_handler  = new AjaxHandler( $bulk_offload );
+        $ajax_handler  = new AjaxHandler( $bulk_offload, $ftp );
 
         // --- Register hooks ---
         $this->register_upload_hooks( $sanitizer, $upload_manager );
@@ -105,11 +105,13 @@ class Plugin {
     }
 
     private function register_admin_hooks( Admin $admin, SettingsPage $settings, AjaxHandler $ajax ): void {
-        $this->loader->add_action( 'admin_menu',              $admin,    'add_menu_pages',     10, 0 );
-        $this->loader->add_action( 'admin_enqueue_scripts',   $admin,    'enqueue_scripts',    10, 1 );
-        $this->loader->add_action( 'admin_init',              $settings, 'register_settings',  10, 0 );
-        $this->loader->add_action( 'wp_ajax_keycdn_start_bulk',    $ajax, 'start_bulk',    10, 0 );
-        $this->loader->add_action( 'wp_ajax_keycdn_bulk_progress', $ajax, 'bulk_progress', 10, 0 );
+        $this->loader->add_action( 'admin_menu',              $admin,    'add_menu_pages',        10, 0 );
+        $this->loader->add_action( 'admin_enqueue_scripts',   $admin,    'enqueue_scripts',       10, 1 );
+        $this->loader->add_action( 'admin_notices',           $admin,    'show_activation_notice', 10, 0 );
+        $this->loader->add_action( 'admin_init',              $settings, 'register_settings',     10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_start_bulk',      $ajax, 'start_bulk',       10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_bulk_progress',   $ajax, 'bulk_progress',    10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_test_connection', $ajax, 'test_connection',  10, 0 );
     }
 
     private function maybe_register_woo( UrlRewriter $rewriter ): void {

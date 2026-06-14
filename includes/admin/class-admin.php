@@ -54,19 +54,45 @@ class Admin {
     }
 
     public function enqueue_scripts( string $hook ): void {
-        if ( 'keycdn-offload_page_keycdn-offload-bulk' !== $hook ) {
+        if ( 'keycdn-offload_page_keycdn-offload-bulk' === $hook ) {
+            wp_enqueue_script(
+                'keycdn-offload-bulk',
+                KEYCDN_OFFLOAD_URL . 'assets/js/bulk-progress.js',
+                [ 'jquery' ],
+                KEYCDN_OFFLOAD_VERSION,
+                true
+            );
+            wp_localize_script( 'keycdn-offload-bulk', 'keyCdnOffload', [
+                'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+                'nonce'   => wp_create_nonce( 'keycdn_offload_bulk' ),
+            ] );
+        }
+
+        if ( 'toplevel_page_keycdn-offload' === $hook ) {
+            wp_enqueue_script(
+                'keycdn-offload-settings',
+                KEYCDN_OFFLOAD_URL . 'assets/js/settings.js',
+                [ 'jquery' ],
+                KEYCDN_OFFLOAD_VERSION,
+                true
+            );
+            wp_localize_script( 'keycdn-offload-settings', 'keyCdnSettings', [
+                'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+                'nonce'   => wp_create_nonce( 'keycdn_test_connection' ),
+            ] );
+        }
+    }
+
+    public function show_activation_notice(): void {
+        if ( ! get_transient( 'keycdn_offload_activated' ) ) {
             return;
         }
-        wp_enqueue_script(
-            'keycdn-offload-bulk',
-            KEYCDN_OFFLOAD_URL . 'assets/js/bulk-progress.js',
-            [ 'jquery' ],
-            KEYCDN_OFFLOAD_VERSION,
-            true
+        delete_transient( 'keycdn_offload_activated' );
+        printf(
+            '<div class="notice notice-success is-dismissible"><p>%s <a href="%s"><strong>%s</strong></a></p></div>',
+            esc_html__( 'WP KeyCDN Media Offload is active.', 'wp-keycdn-offload' ),
+            esc_url( admin_url( 'admin.php?page=keycdn-offload' ) ),
+            esc_html__( 'Enter your KeyCDN credentials to get started →', 'wp-keycdn-offload' )
         );
-        wp_localize_script( 'keycdn-offload-bulk', 'keyCdnOffload', [
-            'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
-            'nonce'     => wp_create_nonce( 'keycdn_offload_bulk' ),
-        ] );
     }
 }

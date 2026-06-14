@@ -15,6 +15,7 @@ class Activator {
         self::set_default_options();
         self::schedule_recurring_jobs();
         update_option( 'keycdn_offload_version', KEYCDN_OFFLOAD_VERSION );
+        set_transient( 'keycdn_offload_activated', true, 60 );
     }
 
     private static function create_trash_directory(): void {
