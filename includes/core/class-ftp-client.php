@@ -31,10 +31,20 @@ class FtpClient {
         if ( false === $conn ) {
             throw new FtpException( "Could not connect to FTP host: {$host}" );
         }
-        $user = $this->credentials->get_ftp_user();
-        $pass = $this->credentials->get_ftp_pass();
-        if ( ! @ftp_login( $conn, $user, $pass ) ) {
+        $user        = $this->credentials->get_ftp_user();
+        $pass        = $this->credentials->get_ftp_pass();
+        $ftp_warning = null;
+        set_error_handler( function ( $errno, $errstr ) use ( &$ftp_warning ) {
+            $ftp_warning = $errstr;
+            return true;
+        } );
+        $login_ok = ftp_login( $conn, $user, $pass );
+        restore_error_handler();
+        if ( ! $login_ok ) {
             ftp_close( $conn );
+            if ( $ftp_warning && strpos( $ftp_warning, '421' ) !== false ) {
+                throw new FtpException( 'FTP connection limit reached — too many simultaneous connections. Try again in a minute.' );
+            }
             throw new FtpException( 'FTP login failed. Check subuser credentials.' );
         }
         if ( ! @ftp_pasv( $conn, true ) ) {

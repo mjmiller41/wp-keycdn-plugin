@@ -38,10 +38,10 @@ class AjaxHandler {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
         }
+        $entries = [];
         try {
             $this->ftp->connect();
             $entries = $this->ftp->list_dir( '/' );
-            $this->ftp->disconnect();
             wp_send_json_success( [
                 'message' => sprintf(
                     /* translators: %d: number of entries found in the CDN zone root */
@@ -51,6 +51,8 @@ class AjaxHandler {
             ] );
         } catch ( \Throwable $e ) {
             wp_send_json_error( [ 'message' => $e->getMessage() ] );
+        } finally {
+            $this->ftp->disconnect();
         }
     }
 
@@ -61,15 +63,16 @@ class AjaxHandler {
             wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
         }
         set_time_limit( 60 );
+        $files     = [];
+        $truncated = false;
         try {
             $this->ftp->connect();
-            $files     = [];
-            $truncated = false;
             $this->collect_cdn_files( '/', $files, $truncated, 500 );
-            $this->ftp->disconnect();
         } catch ( \Throwable $e ) {
             wp_send_json_error( [ 'message' => $e->getMessage() ] );
             return;
+        } finally {
+            $this->ftp->disconnect();
         }
 
         $known      = array_flip( $this->manifest->get_all_remote_paths() );
