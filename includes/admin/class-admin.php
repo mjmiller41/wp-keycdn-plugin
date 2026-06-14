@@ -10,11 +10,13 @@ class Admin {
     private SettingsPage $settings_page;
     private BulkPage     $bulk_page;
     private StatusPage   $status_page;
+    private ImportPage   $import_page;
 
-    public function __construct( SettingsPage $settings_page, BulkPage $bulk_page, StatusPage $status_page ) {
+    public function __construct( SettingsPage $settings_page, BulkPage $bulk_page, StatusPage $status_page, ImportPage $import_page ) {
         $this->settings_page = $settings_page;
         $this->bulk_page     = $bulk_page;
         $this->status_page   = $status_page;
+        $this->import_page   = $import_page;
     }
 
     public function add_menu_pages(): void {
@@ -51,6 +53,14 @@ class Admin {
             'keycdn-offload-status',
             [ $this->status_page, 'render' ]
         );
+        add_submenu_page(
+            'keycdn-offload',
+            __( 'Import from CDN', 'wp-keycdn-offload' ),
+            __( 'Import from CDN', 'wp-keycdn-offload' ),
+            'manage_options',
+            'keycdn-offload-import',
+            [ $this->import_page, 'render' ]
+        );
     }
 
     public function enqueue_scripts( string $hook ): void {
@@ -65,6 +75,20 @@ class Admin {
             wp_localize_script( 'keycdn-offload-bulk', 'keyCdnOffload', [
                 'ajaxUrl' => admin_url( 'admin-ajax.php' ),
                 'nonce'   => wp_create_nonce( 'keycdn_offload_bulk' ),
+            ] );
+        }
+
+        if ( 'keycdn-offload_page_keycdn-offload-import' === $hook ) {
+            wp_enqueue_script(
+                'keycdn-offload-import',
+                KEYCDN_OFFLOAD_URL . 'assets/js/import.js',
+                [ 'jquery' ],
+                KEYCDN_OFFLOAD_VERSION,
+                true
+            );
+            wp_localize_script( 'keycdn-offload-import', 'keyCdnImport', [
+                'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+                'nonce'   => wp_create_nonce( 'keycdn_cdn_import' ),
             ] );
         }
 

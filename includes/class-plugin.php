@@ -4,6 +4,7 @@ namespace KeyCDN\Offload;
 use KeyCDN\Offload\Admin\Admin;
 use KeyCDN\Offload\Admin\AjaxHandler;
 use KeyCDN\Offload\Admin\BulkPage;
+use KeyCDN\Offload\Admin\ImportPage;
 use KeyCDN\Offload\Admin\SettingsPage;
 use KeyCDN\Offload\Admin\StatusPage;
 use KeyCDN\Offload\Cleanup\DeleteJob;
@@ -63,8 +64,9 @@ class Plugin {
         $settings_page = new SettingsPage( $credentials );
         $bulk_page     = new BulkPage();
         $status_page   = new StatusPage( $manifest );
-        $admin         = new Admin( $settings_page, $bulk_page, $status_page );
-        $ajax_handler  = new AjaxHandler( $bulk_offload, $ftp );
+        $import_page   = new ImportPage();
+        $admin         = new Admin( $settings_page, $bulk_page, $status_page, $import_page );
+        $ajax_handler  = new AjaxHandler( $bulk_offload, $ftp, $manifest );
 
         // --- Register hooks ---
         $this->register_upload_hooks( $sanitizer, $upload_manager );
@@ -112,7 +114,9 @@ class Plugin {
         $this->loader->add_action( 'admin_init',              $settings, 'register_settings',     10, 0 );
         $this->loader->add_action( 'wp_ajax_keycdn_start_bulk',      $ajax, 'start_bulk',       10, 0 );
         $this->loader->add_action( 'wp_ajax_keycdn_bulk_progress',   $ajax, 'bulk_progress',    10, 0 );
-        $this->loader->add_action( 'wp_ajax_keycdn_test_connection', $ajax, 'test_connection',  10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_test_connection',    $ajax, 'test_connection',    10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_preview_cdn_import', $ajax, 'preview_cdn_import', 10, 0 );
+        $this->loader->add_action( 'wp_ajax_keycdn_start_cdn_import',   $ajax, 'start_cdn_import',   10, 0 );
     }
 
     private function maybe_register_woo( UrlRewriter $rewriter ): void {

@@ -170,6 +170,16 @@ class Manifest {
         return $counts;
     }
 
+    public function get_all_remote_paths(): array {
+        global $wpdb;
+        return $wpdb->get_col(
+            $wpdb->prepare(
+                'SELECT remote_path FROM ' . self::table_name() . ' WHERE blog_id = %d',
+                get_current_blog_id()
+            )
+        ) ?: [];
+    }
+
     /**
      * Create the manifest table. Safe to call multiple times (uses IF NOT EXISTS).
      */

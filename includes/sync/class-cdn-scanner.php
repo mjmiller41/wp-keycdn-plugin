@@ -38,7 +38,17 @@ class CdnScanner {
                 continue;
             }
             $remote_path = trailingslashit( $remote_dir ) . $name;
-            $this->map_cdn_file_to_attachment( $remote_path, $name, (int) ( $entry['size'] ?? 0 ) );
+            $type        = strtolower( $entry['type'] ?? 'file' );
+
+            if ( in_array( $type, [ 'dir', 'cdir', 'pdir' ], true ) ) {
+                as_enqueue_async_action(
+                    'keycdn_scan_cdn_page',
+                    [ 'remote_dir' => $remote_path, 'page' => 1, 'per_page' => $per_page ],
+                    'keycdn-offload'
+                );
+            } else {
+                $this->map_cdn_file_to_attachment( $remote_path, $name, (int) ( $entry['size'] ?? 0 ) );
+            }
         }
 
         // If there may be more entries, enqueue the next page.
