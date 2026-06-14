@@ -124,14 +124,14 @@ wp eval "echo function_exists('as_enqueue_async_action') ? 'OK' : 'MISSING';"
 
 ```bash
 cd /path/to/wordpress/wp-content/plugins/
-git clone https://github.com/mjmiller41/wp-keycdn-plugin.git wp-keycdn-offload
+git clone https://github.com/mjmiller41/wp-keycdn-plugin.git wp-keycdn-plugin
 ```
 
 **Option B — Zip and upload via admin UI:**
 
 ```bash
 cd /path/to/wp-keycdn-plugin
-zip -r wp-keycdn-offload.zip . -x "*.git*"
+zip -r wp-keycdn-plugin.zip . -x "*.git*"
 ```
 
 Then in WordPress: **Plugins → Add New → Upload Plugin** → choose the zip file.
@@ -189,10 +189,11 @@ Go to **Plugins → Installed Plugins**, find **WP KeyCDN Media Offload**, click
 **Via WP-CLI:**
 
 ```bash
-wp plugin activate wp-keycdn-offload
+wp plugin activate wp-keycdn-plugin
 ```
 
 Activation creates:
+
 - The `{prefix}cdn_offload_log` database table
 - The `wp-content/uploads/_cdn_trash/` quarantine directory with `.htaccess` blocking direct access
 - Default option values
@@ -228,17 +229,17 @@ Both lines must say `OK`. If either says `MISSING`, Action Scheduler was not act
 
 Go to **KeyCDN Offload → Settings**:
 
-| Field | Value |
-|---|---|
-| Zone URL | Your `https://yourzone.kxcdn.com` URL |
-| FTP Host | `ftp.keycdn.com` |
-| FTP Username | Your subuser name |
-| FTP Password | Your subuser password |
-| Auto-Offload on Upload | ✅ Checked |
-| Remove Local Files | ☐ Unchecked (leave off until testing is complete) |
-| Large File Threshold | `50` MB |
-| Quarantine TTL | `30` days |
-| WooCommerce Compatibility | ✅ Checked (if WooCommerce is active) |
+| Field                     | Value                                             |
+| ------------------------- | ------------------------------------------------- |
+| Zone URL                  | Your `https://yourzone.kxcdn.com` URL             |
+| FTP Host                  | `ftp.keycdn.com`                                  |
+| FTP Username              | Your subuser name                                 |
+| FTP Password              | Your subuser password                             |
+| Auto-Offload on Upload    | ✅ Checked                                        |
+| Remove Local Files        | ☐ Unchecked (leave off until testing is complete) |
+| Large File Threshold      | `50` MB                                           |
+| Quarantine TTL            | `30` days                                         |
+| WooCommerce Compatibility | ✅ Checked (if WooCommerce is active)             |
 
 Click **Save Changes**.
 
@@ -470,24 +471,24 @@ wp action-scheduler run --group=keycdn-offload --limit=25
 
 ## 13. Common Problems & Fixes
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| `ftp_ssl_connect` returns false | PHP FTP extension missing SSL support | Rebuild PHP with `--with-openssl` or install `php-ftp` from the distro repo |
-| AS jobs stuck in Pending | WP-Cron disabled or not firing | Add a real server cron: `*/5 * * * * php /path/to/wp-cron.php` |
-| `Configured: NO` | Credentials not saved or constants not defined | Recheck constants in `wp-config.php` or re-enter password in Settings |
-| Remote file size = 0 after upload | PASV mode issue or firewall blocking data port range | Confirm outbound TCP ports 49152–65535 are allowed; plugin always calls `ftp_pasv(true)` |
-| URLs not rewriting to CDN | Manifest rows not yet in `confirmed` state | Run `wp action-scheduler run --group=keycdn-offload` to flush the queue; check manifest states |
-| `MISSING` on reconcile / purge-trash jobs at activation | Action Scheduler was not active when plugin was activated | Activate Action Scheduler, then deactivate and reactivate this plugin |
-| macOS Chrome/Firefox uploads have non-ASCII filenames | Decomposed Unicode (NFD) not normalized | Install `php-intl`; the plugin normalizes to NFC before sanitizing when the extension is present |
-| Decryption returns empty string after salt rotation | Encryption keys derived from WordPress salts that changed | Define `KEYCDN_ENCRYPTION_KEY` and `KEYCDN_ENCRYPTION_SALT` as immutable constants in `wp-config.php`; re-enter the FTP password in Settings |
+| Symptom                                                 | Likely Cause                                              | Fix                                                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ftp_ssl_connect` returns false                         | PHP FTP extension missing SSL support                     | Rebuild PHP with `--with-openssl` or install `php-ftp` from the distro repo                                                                  |
+| AS jobs stuck in Pending                                | WP-Cron disabled or not firing                            | Add a real server cron: `*/5 * * * * php /path/to/wp-cron.php`                                                                               |
+| `Configured: NO`                                        | Credentials not saved or constants not defined            | Recheck constants in `wp-config.php` or re-enter password in Settings                                                                        |
+| Remote file size = 0 after upload                       | PASV mode issue or firewall blocking data port range      | Confirm outbound TCP ports 49152–65535 are allowed; plugin always calls `ftp_pasv(true)`                                                     |
+| URLs not rewriting to CDN                               | Manifest rows not yet in `confirmed` state                | Run `wp action-scheduler run --group=keycdn-offload` to flush the queue; check manifest states                                               |
+| `MISSING` on reconcile / purge-trash jobs at activation | Action Scheduler was not active when plugin was activated | Activate Action Scheduler, then deactivate and reactivate this plugin                                                                        |
+| macOS Chrome/Firefox uploads have non-ASCII filenames   | Decomposed Unicode (NFD) not normalized                   | Install `php-intl`; the plugin normalizes to NFC before sanitizing when the extension is present                                             |
+| Decryption returns empty string after salt rotation     | Encryption keys derived from WordPress salts that changed | Define `KEYCDN_ENCRYPTION_KEY` and `KEYCDN_ENCRYPTION_SALT` as immutable constants in `wp-config.php`; re-enter the FTP password in Settings |
 
 ---
 
 ## Architecture Overview
 
 ```
-wp-keycdn-offload/
-├── wp-keycdn-offload.php          # Bootstrap, constants, PSR-4 autoloader
+wp-keycdn-plugin/
+├── wp-keycdn-plugin.php          # Bootstrap, constants, PSR-4 autoloader
 ├── includes/
 │   ├── class-plugin.php           # Dependency wiring and hook registration
 │   ├── class-activator.php        # DB table, trash dir, AS scheduling
