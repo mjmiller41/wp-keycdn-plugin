@@ -481,6 +481,7 @@ wp action-scheduler run --group=keycdn-offload --limit=25
 | `MISSING` on reconcile / purge-trash jobs at activation | Action Scheduler was not active when plugin was activated | Activate Action Scheduler, then deactivate and reactivate this plugin                                                                        |
 | macOS Chrome/Firefox uploads have non-ASCII filenames   | Decomposed Unicode (NFD) not normalized                   | Install `php-intl`; the plugin normalizes to NFC before sanitizing when the extension is present                                             |
 | Decryption returns empty string after salt rotation     | Encryption keys derived from WordPress salts that changed | Define `KEYCDN_ENCRYPTION_KEY` and `KEYCDN_ENCRYPTION_SALT` as immutable constants in `wp-config.php`; re-enter the FTP password in Settings |
+| Critical error immediately after clicking Activate      | Composer `vendor/` not present and fallback autoloader broken | Run `composer install --no-dev` in the plugin directory, or ensure you are on plugin version ≥ 0.1.1 where the fallback autoloader correctly maps PascalCase class names to kebab-case filenames |
 
 ---
 
@@ -488,7 +489,7 @@ wp action-scheduler run --group=keycdn-offload --limit=25
 
 ```
 wp-keycdn-plugin/
-├── wp-keycdn-plugin.php          # Bootstrap, constants, PSR-4 autoloader
+├── wp-keycdn-offload.php         # Bootstrap, constants, autoloader (Composer if available, else fallback)
 ├── includes/
 │   ├── class-plugin.php           # Dependency wiring and hook registration
 │   ├── class-activator.php        # DB table, trash dir, AS scheduling
