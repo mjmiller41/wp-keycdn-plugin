@@ -42,14 +42,15 @@ class AjaxHandler {
         try {
             $this->ftp->connect();
             $entries = $this->ftp->list_dir( '/' );
-            wp_send_json_success( [
-                'message' => sprintf(
-                    /* translators: %d: number of entries found in the CDN zone root */
-                    __( 'Connection successful. Zone root contains %d entries.', 'wp-keycdn-offload' ),
-                    count( $entries )
-                ),
-            ] );
+            $message = sprintf(
+                /* translators: %d: number of entries found in the CDN zone root */
+                __( 'Connection successful. Zone root contains %d entries.', 'wp-keycdn-offload' ),
+                count( $entries )
+            );
+            set_transient( 'keycdn_ftp_status', [ 'ok' => true,  'message' => $message,          'time' => time() ], HOUR_IN_SECONDS );
+            wp_send_json_success( [ 'message' => $message ] );
         } catch ( \Throwable $e ) {
+            set_transient( 'keycdn_ftp_status', [ 'ok' => false, 'message' => $e->getMessage(),  'time' => time() ], HOUR_IN_SECONDS );
             wp_send_json_error( [ 'message' => $e->getMessage() ] );
         } finally {
             $this->ftp->disconnect();
@@ -134,6 +135,35 @@ class AjaxHandler {
                 $files[] = $path;
             }
         }
+    }
+
+    /** wp_ajax_keycdn_admin_status */
+    public function get_admin_status(): void {
+        check_ajax_referer( 'keycdn_admin_status', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [], 403 );
+        }
+
+        $ftp = get_transient( 'keycdn_ftp_status' ) ?: [ 'ok' => null, 'message' => 'Not yet tested', 'time' => null ];
+
+        $bulk_progress = $this->bulk->get_progress();
+        $bulk_jobs     = ( 'running' === $bulk_progress['status'] ) ? 1 : 0;
+
+        $scan_jobs = 0;
+        if ( function_exists( 'as_get_scheduled_actions' ) ) {
+            $pending = as_get_scheduled_actions(
+                [ 'hook' => 'keycdn_scan_cdn_page', 'status' => 'pending', 'per_page' => -1 ],
+                'ids'
+            );
+            $scan_jobs = count( $pending );
+        }
+
+        wp_send_json_success( [
+            'ftp'           => $ftp,
+            'bulk_jobs'     => $bulk_jobs,
+            'bulk_progress' => $bulk_progress,
+            'scan_jobs'     => $scan_jobs,
+        ] );
     }
 
     /** wp_ajax_keycdn_bulk_progress */

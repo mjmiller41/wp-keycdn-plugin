@@ -21,7 +21,45 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 <script>
 (function($){
-    var polling;
+    var polling = null;
+
+    function renderProgress( d ) {
+        $('#keycdn-progress-bar').css('width', d.percent + '%');
+        $('#keycdn-progress-label').text(
+            d.completed + ' / ' + d.total + ' files — ' + d.percent + '%' +
+            ( d.failed > 0 ? ' (' + d.failed + ' failed)' : '' )
+        );
+    }
+
+    function startPolling() {
+        if ( polling ) return;
+        polling = setInterval(function(){
+            $.post(keyCdnOffload.ajaxUrl, {
+                action: 'keycdn_bulk_progress',
+                nonce:  keyCdnOffload.nonce
+            }, function(resp){
+                if ( ! resp.success ) return;
+                var d = resp.data;
+                renderProgress( d );
+                if ( d.status === 'complete' || d.percent >= 100 ) {
+                    clearInterval(polling);
+                    polling = null;
+                    $('#keycdn-start-bulk').prop('disabled', false);
+                    $('#keycdn-progress-label').append(' <strong><?php echo esc_js( __( 'Done!', 'wp-keycdn-offload' ) ); ?></strong>');
+                }
+            });
+        }, 3000);
+    }
+
+    // Called by admin-status.js when it detects a running bulk job from any page.
+    window.keyCdnResumeBulk = function( progress ) {
+        if ( polling ) return;
+        $('#keycdn-start-bulk').prop('disabled', true);
+        $('#keycdn-progress-wrap').show();
+        renderProgress( progress );
+        startPolling();
+    };
+
     $('#keycdn-start-bulk').on('click', function(){
         $(this).prop('disabled', true);
         $('#keycdn-progress-wrap').show();
@@ -35,25 +73,16 @@ if ( ! defined( 'ABSPATH' ) ) {
         });
     });
 
-    function startPolling(){
-        polling = setInterval(function(){
-            $.post(keyCdnOffload.ajaxUrl, {
-                action: 'keycdn_bulk_progress',
-                nonce:  keyCdnOffload.nonce
-            }, function(resp){
-                if ( ! resp.success ) return;
-                var d = resp.data;
-                $('#keycdn-progress-bar').css('width', d.percent + '%');
-                $('#keycdn-progress-label').text(
-                    d.completed + ' / ' + d.total + ' files — ' + d.percent + '%' +
-                    ( d.failed > 0 ? ' (' + d.failed + ' failed)' : '' )
-                );
-                if ( d.status === 'complete' || d.percent >= 100 ) {
-                    clearInterval(polling);
-                    $('#keycdn-progress-label').append(' <strong><?php echo esc_js( __( 'Done!', 'wp-keycdn-offload' ) ); ?></strong>');
-                }
-            });
-        }, 3000);
-    }
+    // Auto-resume: check on page load whether a bulk job is already running.
+    $.post(keyCdnOffload.ajaxUrl, {
+        action: 'keycdn_bulk_progress',
+        nonce:  keyCdnOffload.nonce
+    }, function(resp){
+        if ( ! resp.success ) return;
+        var d = resp.data;
+        if ( d.total > 0 && d.status === 'running' ) {
+            window.keyCdnResumeBulk( d );
+        }
+    });
 }(jQuery));
 </script>
