@@ -50,19 +50,22 @@ class DeleteJob {
         } catch ( FtpException $e ) {
             throw new \RuntimeException( 'FTP connect failed during delete: ' . $e->getMessage(), 0, $e );
         }
-        foreach ( $rows as $row ) {
-            try {
-                $this->ftp->delete( $row['remote_path'] );
-            } catch ( FtpException $e ) {
-                // Log but continue — file may already be gone from CDN.
-                error_log( sprintf( 'KeyCDN Offload: FTP delete failed for %s: %s', $row['remote_path'], $e->getMessage() ) );
+        try {
+            foreach ( $rows as $row ) {
+                try {
+                    $this->ftp->delete( $row['remote_path'] );
+                } catch ( FtpException $e ) {
+                    // Log but continue — file may already be gone from CDN.
+                    error_log( sprintf( 'KeyCDN Offload: FTP delete failed for %s: %s', $row['remote_path'], $e->getMessage() ) );
+                }
+                // Quarantine any remaining local file.
+                if ( ! empty( $row['local_path'] ) && file_exists( $row['local_path'] ) ) {
+                    $this->trash->quarantine( (int) $row['id'], $row['local_path'] );
+                }
             }
-            // Quarantine any remaining local file.
-            if ( ! empty( $row['local_path'] ) && file_exists( $row['local_path'] ) ) {
-                $this->trash->quarantine( (int) $row['id'], $row['local_path'] );
-            }
+        } finally {
+            $this->ftp->disconnect();
         }
-        $this->ftp->disconnect();
         $this->manifest->delete_by_attachment( $attachment_id );
     }
 }

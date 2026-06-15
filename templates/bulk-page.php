@@ -41,7 +41,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                 if ( ! resp.success ) return;
                 var d = resp.data;
                 renderProgress( d );
-                if ( d.status === 'complete' || d.percent >= 100 ) {
+                if ( d.status === 'complete' ) {
                     clearInterval(polling);
                     polling = null;
                     $('#keycdn-start-bulk').prop('disabled', false);

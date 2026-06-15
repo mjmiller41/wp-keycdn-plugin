@@ -105,19 +105,21 @@ class FtpClient {
             CURLOPT_FTP_CREATE_MISSING_DIRS => true,
             CURLOPT_USE_SSL                 => CURLUSESSL_ALL,
             CURLOPT_FTPSSLAUTH              => CURLFTPAUTH_TLS,
-            CURLOPT_SSL_VERIFYPEER          => false,
-            CURLOPT_SSL_VERIFYHOST          => 0,
             CURLOPT_TIMEOUT                 => 300,
             CURLOPT_RETURNTRANSFER          => true,
         ] );
 
-        curl_exec( $ch );
-        $err = curl_error( $ch );
+        $result   = curl_exec( $ch );
+        $err      = curl_error( $ch );
+        $ftp_code = (int) curl_getinfo( $ch, CURLINFO_RESPONSE_CODE );
         curl_close( $ch );
         fclose( $fh );
 
-        if ( $err ) {
-            throw new FtpException( "FTP upload failed for {$remote_path}: {$err}" );
+        if ( false === $result || $err ) {
+            throw new FtpException( "FTP upload failed for {$remote_path}: " . ( $err ?: 'unknown cURL error' ) );
+        }
+        if ( $ftp_code >= 400 ) {
+            throw new FtpException( "FTP upload rejected for {$remote_path}: server returned {$ftp_code}" );
         }
     }
 

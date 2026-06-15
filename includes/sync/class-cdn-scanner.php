@@ -3,7 +3,6 @@ namespace KeyCDN\Offload\Sync;
 
 use KeyCDN\Offload\Core\FtpClient;
 use KeyCDN\Offload\Core\Manifest;
-use KeyCDN\Offload\Core\StateMachine;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -125,14 +124,8 @@ class CdnScanner {
             }
         }
 
-        // Insert manifest row as already confirmed.
-        $row_id = $this->manifest->insert( (int) $attachment_id, 'full', $remote_path, '', $byte_size, '', '' );
-        $wpdb->update(
-            Manifest::table_name(),
-            [ 'state' => StateMachine::CONFIRMED, 'last_verified_at' => current_time( 'mysql', true ) ],
-            [ 'id'    => $row_id ],
-            [ '%s', '%s' ],
-            [ '%d' ]
-        );
+        // Atomically insert or update the manifest row as confirmed.
+        // upsert_confirmed() handles concurrent scan jobs racing on the same file.
+        $this->manifest->upsert_confirmed( (int) $attachment_id, 'full', $remote_path, $byte_size );
     }
 }

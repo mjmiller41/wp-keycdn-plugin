@@ -106,6 +106,10 @@ class UploadJob {
             $row_id = $this->manifest->insert( $attachment_id, $size_slug, $remote_path, $local_path, $byte_size, $md5, $sha1 );
         } elseif ( $current_state === StateMachine::CONFIRMED || $current_state === StateMachine::LOCAL_REMOVED ) {
             return; // Already done — nothing to upload.
+        } elseif ( $current_state === StateMachine::PENDING ) {
+            // Row was left in PENDING by a prior crashed job. Refresh its stale file metadata
+            // before re-uploading in case the file on disk changed since the original insert.
+            $this->manifest->update_file_metadata( $row_id, $remote_path, $local_path, $byte_size, $md5, $sha1 );
         } elseif ( $current_state === StateMachine::UPLOADING ) {
             // Row is stuck in UPLOADING from a prior job that crashed before writing FAILED.
             // Reset to FAILED so the FAILED → UPLOADING transition below is valid.

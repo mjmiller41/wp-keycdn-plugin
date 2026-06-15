@@ -41,27 +41,43 @@ class BulkOffload {
     /**
      * Action Scheduler callback for 'keycdn_bulk_page'.
      *
-     * Always queries from offset 0 and excludes already-queued or already-offloaded IDs.
-     * Using paged+offset with a growing post__not_in causes attachments to be skipped
-     * as the exclude list grows and the result set shrinks between pages.
+     * Uses NOT EXISTS against the manifest so the exclude set never has to be loaded into PHP
+     * memory — avoids the O(n²) cost of a growing post__not_in on large libraries.
      */
     public function handle_page( int $page, int $batch_size, string $run_id ): void {
-        $exclude_ids = $this->get_in_progress_or_offloaded_ids();
-        $query = new \WP_Query( [
-            'post_type'      => 'attachment',
-            'post_status'    => 'inherit',
-            'fields'         => 'ids',
-            'no_found_rows'  => true,
-            'posts_per_page' => $batch_size,
-            'post__not_in'   => $exclude_ids,
-        ] );
+        global $wpdb;
+        $table   = Manifest::table_name();
+        $blog_id = (int) get_current_blog_id();
+        $states  = "'" . implode( "','", [
+            StateMachine::PENDING,
+            StateMachine::UPLOADING,
+            StateMachine::VERIFYING,
+            StateMachine::CONFIRMED,
+            StateMachine::LOCAL_REMOVED,
+        ] ) . "'";
 
-        if ( empty( $query->posts ) ) {
+        $ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT p.ID FROM {$wpdb->posts} p
+             WHERE p.post_type = 'attachment'
+               AND p.post_status = 'inherit'
+               AND NOT EXISTS (
+                   SELECT 1 FROM {$table} m
+                   WHERE m.attachment_id = p.ID
+                     AND m.blog_id = %d
+                     AND m.state IN ({$states})
+               )
+             ORDER BY p.ID
+             LIMIT %d",
+            $blog_id,
+            $batch_size
+        ) );
+
+        if ( empty( $ids ) ) {
             update_option( 'keycdn_offload_bulk_status', 'complete' );
             return;
         }
 
-        foreach ( $query->posts as $attachment_id ) {
+        foreach ( $ids as $attachment_id ) {
             $this->manager->enqueue_attachment( (int) $attachment_id );
         }
 
@@ -102,7 +118,7 @@ class BulkOffload {
             "SELECT COUNT(DISTINCT attachment_id) FROM {$table} WHERE state IN ({$failed_in}) AND blog_id = {$blog_id}"
         );
 
-        $completed = max( 0, $current_confirmed - $initial );
+        $completed = max( 0, min( $current_confirmed - $initial, $total ) );
         $percent   = $total > 0 ? round( ( $completed / $total ) * 100, 1 ) : 0.0;
 
         return [

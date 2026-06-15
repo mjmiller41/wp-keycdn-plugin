@@ -170,6 +170,59 @@ class Manifest {
         return $counts;
     }
 
+    /**
+     * Atomically insert or update a manifest row in the CONFIRMED state.
+     * ON DUPLICATE KEY UPDATE handles concurrent scanner jobs racing on the same file.
+     */
+    public function upsert_confirmed( int $attachment_id, string $size_slug, string $remote_path, int $byte_size ): void {
+        global $wpdb;
+        $now = current_time( 'mysql', true );
+        $wpdb->query(
+            $wpdb->prepare(
+                'INSERT INTO ' . self::table_name() . '
+                 (attachment_id, blog_id, size_slug, remote_path, local_path, byte_size,
+                  md5_checksum, sha1_checksum, state, retry_count, created_at, updated_at, last_verified_at)
+                 VALUES (%d, %d, %s, %s, %s, %d, %s, %s, %s, 0, %s, %s, %s)
+                 ON DUPLICATE KEY UPDATE
+                   state            = VALUES(state),
+                   remote_path      = VALUES(remote_path),
+                   byte_size        = VALUES(byte_size),
+                   last_verified_at = VALUES(last_verified_at),
+                   updated_at       = VALUES(updated_at)',
+                $attachment_id,
+                get_current_blog_id(),
+                $size_slug,
+                $remote_path,
+                '',
+                $byte_size,
+                '',
+                '',
+                StateMachine::CONFIRMED,
+                $now,
+                $now,
+                $now
+            )
+        );
+    }
+
+    public function update_file_metadata( int $row_id, string $remote_path, string $local_path, int $byte_size, string $md5, string $sha1 ): void {
+        global $wpdb;
+        $wpdb->update(
+            self::table_name(),
+            [
+                'remote_path'   => $remote_path,
+                'local_path'    => $local_path,
+                'byte_size'     => $byte_size,
+                'md5_checksum'  => $md5,
+                'sha1_checksum' => $sha1,
+                'updated_at'    => current_time( 'mysql', true ),
+            ],
+            [ 'id' => $row_id ],
+            [ '%s', '%s', '%d', '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+    }
+
     public function get_all_remote_paths(): array {
         global $wpdb;
         return $wpdb->get_col(

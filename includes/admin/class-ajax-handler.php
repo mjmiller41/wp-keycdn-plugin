@@ -112,7 +112,11 @@ class AjaxHandler {
      * Recursively collect all file paths in a CDN directory tree, up to $limit entries.
      * Uses the same FTP connection — caller must connect/disconnect around this.
      */
-    private function collect_cdn_files( string $dir, array &$files, bool &$truncated, int $limit ): void {
+    private function collect_cdn_files( string $dir, array &$files, bool &$truncated, int $limit, int $depth = 0 ): void {
+        // Guard against symlink loops and pathologically deep trees.
+        if ( $depth > 20 ) {
+            return;
+        }
         if ( count( $files ) >= $limit ) {
             $truncated = true;
             return;
@@ -130,7 +134,7 @@ class AjaxHandler {
             $path = trailingslashit( $dir ) . $name;
             $type = strtolower( $entry['type'] ?? 'file' );
             if ( in_array( $type, [ 'dir', 'cdir', 'pdir' ], true ) ) {
-                $this->collect_cdn_files( $path, $files, $truncated, $limit );
+                $this->collect_cdn_files( $path, $files, $truncated, $limit, $depth + 1 );
             } else {
                 $files[] = $path;
             }

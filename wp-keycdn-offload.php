@@ -35,7 +35,7 @@ if ( file_exists( KEYCDN_OFFLOAD_PATH . 'vendor/autoload.php' ) ) {
         $relative = substr( $class, strlen( $prefix ) );
         $parts    = explode( '\\', $relative );
         $class_name = array_pop( $parts );
-        $kebab      = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_name ) );
+        $kebab      = strtolower( preg_replace( [ '/([A-Z]+)([A-Z][a-z])/', '/([a-z])([A-Z])/' ], '$1-$2', $class_name ) );
         $filename   = 'class-' . $kebab . '.php';
         $subdir   = $parts ? strtolower( implode( '/', $parts ) ) . '/' : '';
         $path     = KEYCDN_OFFLOAD_PATH . 'includes/' . $subdir . $filename;
