@@ -24,12 +24,7 @@ class CdnScanner {
      */
     public function handle( string $remote_dir, int $page, int $per_page ): void {
         set_time_limit( 0 );
-        try {
-            $this->ftp->connect();
-            $entries = $this->ftp->list_dir( $remote_dir );
-        } finally {
-            $this->ftp->disconnect();
-        }
+        $entries = $this->ftp->list_dir( $remote_dir );
 
         $offset  = ( $page - 1 ) * $per_page;
         $slice   = array_slice( $entries, $offset, $per_page );

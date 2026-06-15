@@ -2,7 +2,6 @@
 namespace KeyCDN\Offload\Upload;
 
 use KeyCDN\Offload\Core\FtpClient;
-use KeyCDN\Offload\Core\FtpException;
 use KeyCDN\Offload\Core\Manifest;
 use KeyCDN\Offload\Core\StateMachine;
 
@@ -38,20 +37,8 @@ class UploadJob {
             return;
         }
 
-        // connect() is needed for verify() (ftp_size uses control channel only).
-        // put() uses cURL independently and does not need the PHP FTP connection.
-        try {
-            $this->ftp->connect();
-        } catch ( FtpException $e ) {
-            throw new \RuntimeException( 'FTP connect failed: ' . $e->getMessage(), 0, $e );
-        }
-
-        try {
-            foreach ( $files as $size_slug => $local_path ) {
-                $this->upload_file( $attachment_id, $size_slug, $local_path );
-            }
-        } finally {
-            $this->ftp->disconnect();
+        foreach ( $files as $size_slug => $local_path ) {
+            $this->upload_file( $attachment_id, $size_slug, $local_path );
         }
     }
 

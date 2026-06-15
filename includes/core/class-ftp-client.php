@@ -124,18 +124,29 @@ class FtpClient {
     }
 
     /**
-     * Verify upload by comparing remote size with local filesize.
+     * Verify upload by comparing remote file size with expected bytes via cURL SIZE command.
+     * Uses cURL (not ftp_size) so no PHP FTP control channel is needed — avoids consuming
+     * one of KeyCDN's 3 concurrent-connection slots during AS job execution.
      */
     public function verify( string $remote_path, int $expected_bytes ): bool {
-        $this->connect();
-        $remote_size = @ftp_size( $this->conn, $remote_path );
-        if ( $remote_size < 0 ) {
-            // Control channel may have gone idle during a long cURL upload; reconnect and retry once.
-            $this->disconnect();
-            $this->connect();
-            $remote_size = @ftp_size( $this->conn, $remote_path );
-        }
-        if ( $remote_size < 0 ) {
+        $path = trim( $remote_path, '/' );
+        $url  = 'ftp://' . $this->credentials->get_ftp_host() . '/' . $path;
+
+        $ch = curl_init( $url );
+        curl_setopt_array( $ch, [
+            CURLOPT_USERPWD        => $this->credentials->get_ftp_user() . ':' . $this->credentials->get_ftp_pass(),
+            CURLOPT_USE_SSL        => CURLUSESSL_ALL,
+            CURLOPT_FTPSSLAUTH     => CURLFTPAUTH_TLS,
+            CURLOPT_NOBODY         => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+        ] );
+        curl_exec( $ch );
+        $remote_size = curl_getinfo( $ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T );
+        $err         = curl_error( $ch );
+        curl_close( $ch );
+
+        if ( $err || $remote_size < 0 ) {
             return false;
         }
         if ( $expected_bytes > 0 && $remote_size === 0 ) {
