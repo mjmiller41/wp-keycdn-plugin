@@ -89,6 +89,7 @@ class CdnScanner {
             )
         );
 
+        $new_attachment = false;
         if ( ! $attachment_id ) {
             // Derive the uploads-relative path (strip optional zone subdir prefix).
             $subdir   = get_option( 'keycdn_offload_zone_subdir', '' );
@@ -113,7 +114,14 @@ class CdnScanner {
             update_post_meta( $attachment_id, '_keycdn_offloaded_url', $cdn_url );
             // Required so WordPress can resolve thumbnail URLs and future scans can find this record.
             update_post_meta( $attachment_id, '_wp_attached_file', $rel_path );
+            $new_attachment = true;
+        }
 
+        // Mark confirmed BEFORE generating metadata so the wp_generate/update_attachment_metadata
+        // filter (which queues uploads) sees a confirmed manifest row and skips re-queuing.
+        $this->manifest->upsert_confirmed( (int) $attachment_id, 'full', $remote_path, $byte_size );
+
+        if ( $new_attachment ) {
             // Generate full attachment metadata if the original file still exists locally.
             $upload_dir = wp_upload_dir();
             $local_path = trailingslashit( $upload_dir['basedir'] ) . $rel_path;
@@ -123,9 +131,5 @@ class CdnScanner {
                 wp_update_attachment_metadata( (int) $attachment_id, $meta );
             }
         }
-
-        // Atomically insert or update the manifest row as confirmed.
-        // upsert_confirmed() handles concurrent scan jobs racing on the same file.
-        $this->manifest->upsert_confirmed( (int) $attachment_id, 'full', $remote_path, $byte_size );
     }
 }
