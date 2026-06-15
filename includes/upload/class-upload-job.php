@@ -38,13 +38,18 @@ class UploadJob {
             return;
         }
 
+        // connect() is needed for verify() (ftp_size uses control channel only).
+        // put() uses cURL independently and does not need the PHP FTP connection.
         try {
             $this->ftp->connect();
+        } catch ( FtpException $e ) {
+            throw new \RuntimeException( 'FTP connect failed: ' . $e->getMessage(), 0, $e );
+        }
+
+        try {
             foreach ( $files as $size_slug => $local_path ) {
                 $this->upload_file( $attachment_id, $size_slug, $local_path );
             }
-        } catch ( FtpException $e ) {
-            throw new \RuntimeException( 'FTP connect failed: ' . $e->getMessage(), 0, $e );
         } finally {
             $this->ftp->disconnect();
         }
@@ -89,18 +94,22 @@ class UploadJob {
         // Check for existing row or insert.
         $existing_rows = $this->manifest->get_by_attachment( $attachment_id );
         $row_id        = null;
+        $current_state = null;
         foreach ( $existing_rows as $row ) {
             if ( $row['size_slug'] === $size_slug ) {
-                $row_id = (int) $row['id'];
-                // Reset to pending if it was previously failed/quarantined.
-                if ( in_array( $row['state'], [ StateMachine::FAILED, StateMachine::QUARANTINED ], true ) ) {
-                    $this->manifest->transition_state( $row_id, StateMachine::PENDING );
-                }
+                $row_id        = (int) $row['id'];
+                $current_state = $row['state'];
                 break;
             }
         }
         if ( null === $row_id ) {
             $row_id = $this->manifest->insert( $attachment_id, $size_slug, $remote_path, $local_path, $byte_size, $md5, $sha1 );
+        } elseif ( $current_state === StateMachine::CONFIRMED || $current_state === StateMachine::LOCAL_REMOVED ) {
+            return; // Already done — nothing to upload.
+        } elseif ( $current_state === StateMachine::UPLOADING ) {
+            // Row is stuck in UPLOADING from a prior job that crashed before writing FAILED.
+            // Reset to FAILED so the FAILED → UPLOADING transition below is valid.
+            $this->manifest->transition_state( $row_id, StateMachine::FAILED );
         }
 
         $this->manifest->transition_state( $row_id, StateMachine::UPLOADING );

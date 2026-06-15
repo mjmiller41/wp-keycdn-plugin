@@ -32,10 +32,27 @@ class UploadManager {
         if ( ! function_exists( 'as_enqueue_async_action' ) ) {
             return;
         }
-        // De-duplication: skip if already queued or confirmed.
+        // Skip if already confirmed or actively processing.
         $rows = $this->manifest->get_by_attachment( $attachment_id );
         foreach ( $rows as $row ) {
             if ( in_array( $row['state'], [ StateMachine::UPLOADING, StateMachine::VERIFYING, StateMachine::CONFIRMED, StateMachine::LOCAL_REMOVED ], true ) ) {
+                return;
+            }
+        }
+        // Skip if an AS job is already pending or running for this attachment.
+        // Checking both statuses prevents a second bulk page from duplicating jobs
+        // that are currently being processed by a concurrent AS worker.
+        foreach ( [ 'pending', 'in-progress' ] as $status ) {
+            $found = as_get_scheduled_actions(
+                [
+                    'hook'     => 'keycdn_upload_attachment',
+                    'args'     => [ 'attachment_id' => $attachment_id ],
+                    'status'   => $status,
+                    'per_page' => 1,
+                ],
+                'ids'
+            );
+            if ( ! empty( $found ) ) {
                 return;
             }
         }

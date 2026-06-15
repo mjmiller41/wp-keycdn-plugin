@@ -14,12 +14,9 @@ class FtpClient {
     /** @var resource|false */
     private $conn = false;
 
-    /** Threshold in bytes above which ftp_fput() streaming is used. */
-    private int $large_file_threshold;
 
     public function __construct( Credentials $credentials ) {
-        $this->credentials          = $credentials;
-        $this->large_file_threshold = (int) get_option( 'keycdn_offload_large_file_mb', 50 ) * 1024 * 1024;
+        $this->credentials = $credentials;
     }
 
     public function connect(): void {
@@ -83,28 +80,40 @@ class FtpClient {
     }
 
     /**
-     * Upload a local file to a remote path.
-     * Uses ftp_fput() (streaming) for large files, ftp_put() for small ones.
+     * Upload a local file to a remote path via cURL.
+     * Uses cURL instead of PHP's ftp_put() because ftp_put() hangs on data-channel
+     * writes in Docker/NAT environments despite the control channel working fine.
+     * cURL handles FTPS data channels correctly and creates missing directories.
      */
     public function put( string $local_path, string $remote_path ): void {
-        $this->connect();
-        $this->ensure_remote_dir( dirname( $remote_path ) );
-
-        $size = filesize( $local_path );
-
-        if ( $size >= $this->large_file_threshold ) {
-            $handle = fopen( $local_path, 'rb' );
-            if ( ! $handle ) {
-                throw new FtpException( "Cannot open local file for streaming: {$local_path}" );
-            }
-            $result = @ftp_fput( $this->conn, $remote_path, $handle, FTP_BINARY );
-            fclose( $handle );
-        } else {
-            $result = @ftp_put( $this->conn, $remote_path, $local_path, FTP_BINARY );
+        $fh = fopen( $local_path, 'rb' );
+        if ( ! $fh ) {
+            throw new FtpException( "Cannot open local file for reading: {$local_path}" );
         }
 
-        if ( ! $result ) {
-            throw new FtpException( "FTP put failed for remote path: {$remote_path}" );
+        $ch = curl_init();
+        curl_setopt_array( $ch, [
+            CURLOPT_URL                     => 'ftp://' . $this->credentials->get_ftp_host() . $remote_path,
+            CURLOPT_USERPWD                 => $this->credentials->get_ftp_user() . ':' . $this->credentials->get_ftp_pass(),
+            CURLOPT_UPLOAD                  => true,
+            CURLOPT_INFILE                  => $fh,
+            CURLOPT_INFILESIZE              => (int) filesize( $local_path ),
+            CURLOPT_FTP_CREATE_MISSING_DIRS => true,
+            CURLOPT_USE_SSL                 => CURLUSESSL_ALL,
+            CURLOPT_FTPSSLAUTH              => CURLFTPAUTH_TLS,
+            CURLOPT_SSL_VERIFYPEER          => false,
+            CURLOPT_SSL_VERIFYHOST          => 0,
+            CURLOPT_TIMEOUT                 => 300,
+            CURLOPT_RETURNTRANSFER          => true,
+        ] );
+
+        curl_exec( $ch );
+        $err = curl_error( $ch );
+        curl_close( $ch );
+        fclose( $fh );
+
+        if ( $err ) {
+            throw new FtpException( "FTP upload failed for {$remote_path}: {$err}" );
         }
     }
 
@@ -176,20 +185,4 @@ class FtpClient {
         return array_map( fn( $name ) => [ 'name' => basename( $name ), 'type' => 'file' ], $list );
     }
 
-    /**
-     * Recursively create remote directories as needed.
-     */
-    private function ensure_remote_dir( string $remote_dir ): void {
-        if ( '/' === $remote_dir || '' === $remote_dir ) {
-            return;
-        }
-        // Try to change into the dir; if that fails, ensure parent then create.
-        if ( @ftp_chdir( $this->conn, $remote_dir ) ) {
-            @ftp_chdir( $this->conn, '/' );
-            return;
-        }
-        $this->ensure_remote_dir( dirname( $remote_dir ) );
-        @ftp_mkdir( $this->conn, $remote_dir );
-        @ftp_chdir( $this->conn, '/' );
-    }
 }
