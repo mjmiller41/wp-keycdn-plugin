@@ -54,6 +54,9 @@ class Encryption {
         }
         // Strip the appended salt from the decrypted value.
         $salt_len = strlen( $this->salt );
+        if ( 0 === $salt_len ) {
+            return $raw;
+        }
         if ( substr( $raw, -$salt_len ) === $this->salt ) {
             return substr( $raw, 0, -$salt_len );
         }
