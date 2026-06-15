@@ -151,50 +151,79 @@ class FtpClient {
     }
 
     /**
-     * List a remote directory.
-     * 1. ftp_mlsd  — richest metadata, includes type (dir/file).
-     * 2. ftp_rawlist — Unix ls -l format; first char 'd' = directory.
-     * 3. ftp_nlist — last resort; no type info, everything treated as file.
+     * List a remote directory via cURL MLSD, with NLST fallback.
+     * Uses cURL (not PHP ftp_* functions) for the same reason put() does: PHP's
+     * ftp_* data-channel operations hang in Docker/NAT environments.
      */
     public function list_dir( string $remote_dir ): array {
-        $this->connect();
+        $url = 'ftp://' . $this->credentials->get_ftp_host()
+             . '/' . ltrim( rtrim( $remote_dir, '/' ), '/' ) . '/';
 
-        if ( function_exists( 'ftp_mlsd' ) ) {
-            $entries = @ftp_mlsd( $this->conn, $remote_dir );
-            if ( false !== $entries ) {
-                return $entries;
-            }
+        $base_opts = [
+            CURLOPT_USERPWD        => $this->credentials->get_ftp_user() . ':' . $this->credentials->get_ftp_pass(),
+            CURLOPT_USE_SSL        => CURLUSESSL_ALL,
+            CURLOPT_FTPSSLAUTH     => CURLFTPAUTH_TLS,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+        ];
+
+        // Try MLSD — richest metadata (type, size).
+        $ch = curl_init( $url );
+        curl_setopt_array( $ch, $base_opts + [ CURLOPT_CUSTOMREQUEST => 'MLSD' ] );
+        $output = curl_exec( $ch );
+        $err    = curl_error( $ch );
+        curl_close( $ch );
+
+        if ( $output && ! $err ) {
+            return $this->parse_mlsd( (string) $output );
         }
 
-        $raw = @ftp_rawlist( $this->conn, $remote_dir );
-        if ( false !== $raw && is_array( $raw ) ) {
-            $entries = [];
-            foreach ( $raw as $line ) {
-                if ( empty( $line ) ) {
-                    continue;
-                }
-                $parts = preg_split( '/\s+/', ltrim( $line ), 9 );
-                if ( count( $parts ) < 9 ) {
-                    continue;
-                }
-                $name = $parts[8];
-                if ( in_array( $name, [ '.', '..' ], true ) ) {
-                    continue;
-                }
-                $entries[] = [
-                    'name' => $name,
-                    'type' => str_starts_with( $parts[0], 'd' ) ? 'dir' : 'file',
-                    'size' => (int) $parts[4],
-                ];
-            }
-            return $entries;
-        }
+        // Fall back to NLST — just filenames, no type info.
+        $ch = curl_init( $url );
+        curl_setopt_array( $ch, $base_opts + [ CURLOPT_FTPLISTONLY => true ] );
+        $output = curl_exec( $ch );
+        $err    = curl_error( $ch );
+        curl_close( $ch );
 
-        $list = @ftp_nlist( $this->conn, $remote_dir );
-        if ( false === $list ) {
+        if ( false === $output || $err ) {
             return [];
         }
-        return array_map( fn( $name ) => [ 'name' => basename( $name ), 'type' => 'file' ], $list );
+
+        $names = array_filter( array_map( 'trim', explode( "\n", (string) $output ) ) );
+        return array_map( fn( $n ) => [ 'name' => basename( $n ), 'type' => 'file' ], array_values( $names ) );
+    }
+
+    /** Parse an MLSD response into the same [ 'name', 'type', 'size' ] shape used elsewhere. */
+    private function parse_mlsd( string $output ): array {
+        $entries = [];
+        foreach ( explode( "\n", $output ) as $line ) {
+            $line = trim( $line );
+            if ( ! $line ) {
+                continue;
+            }
+            $sep = strrpos( $line, ' ' );
+            if ( false === $sep ) {
+                continue;
+            }
+            $name = substr( $line, $sep + 1 );
+            if ( in_array( $name, [ '.', '..' ], true ) ) {
+                continue;
+            }
+            $facts = [];
+            foreach ( explode( ';', substr( $line, 0, $sep ) ) as $fact ) {
+                if ( strpos( $fact, '=' ) === false ) {
+                    continue;
+                }
+                [ $k, $v ]          = explode( '=', $fact, 2 );
+                $facts[ strtolower( trim( $k ) ) ] = trim( $v );
+            }
+            $entries[] = [
+                'name' => $name,
+                'type' => $facts['type'] ?? 'file',
+                'size' => (int) ( $facts['size'] ?? 0 ),
+            ];
+        }
+        return $entries;
     }
 
 }
