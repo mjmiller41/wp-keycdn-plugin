@@ -21,14 +21,14 @@ class Credentials {
     }
 
     public function get_ftp_user(): string {
-        if ( defined( 'KEYCDN_FTP_USER' ) ) {
+        if ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER ) {
             return KEYCDN_FTP_USER;
         }
         return (string) get_option( 'keycdn_offload_ftp_user', '' );
     }
 
     public function get_ftp_pass(): string {
-        if ( defined( 'KEYCDN_FTP_PASS' ) ) {
+        if ( defined( 'KEYCDN_FTP_PASS' ) && '' !== KEYCDN_FTP_PASS ) {
             return KEYCDN_FTP_PASS;
         }
         $enc = (string) get_option( 'keycdn_offload_ftp_pass_enc', '' );
@@ -43,7 +43,7 @@ class Credentials {
     }
 
     public function get_zone_url(): string {
-        if ( defined( 'KEYCDN_ZONE_URL' ) ) {
+        if ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL ) {
             return rtrim( KEYCDN_ZONE_URL, '/' );
         }
         return rtrim( (string) get_option( 'keycdn_offload_zone_url', '' ), '/' );

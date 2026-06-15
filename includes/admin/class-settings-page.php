@@ -27,8 +27,8 @@ class SettingsPage {
         register_setting( 'keycdn_offload_settings', 'keycdn_offload_zone_subdir',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
 
         // Only register the password field when it is actually shown — avoids a PHP 8 TypeError
-        // when the field is absent from POST because KEYCDN_FTP_PASS is defined as a constant.
-        if ( ! defined( 'KEYCDN_FTP_PASS' ) ) {
+        // when the field is absent from POST because KEYCDN_FTP_PASS is set as a non-empty constant.
+        if ( ! ( defined( 'KEYCDN_FTP_PASS' ) && '' !== KEYCDN_FTP_PASS ) ) {
             register_setting( 'keycdn_offload_settings', 'keycdn_offload_ftp_pass_new', [ 'sanitize_callback' => [ $this, 'save_password' ] ] );
         }
     }
@@ -46,7 +46,9 @@ class SettingsPage {
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
-        $using_constants = defined( 'KEYCDN_FTP_USER' ) && defined( 'KEYCDN_FTP_PASS' ) && defined( 'KEYCDN_ZONE_URL' );
+        $using_constants = ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER )
+                        && ( defined( 'KEYCDN_FTP_PASS' ) && '' !== KEYCDN_FTP_PASS )
+                        && ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL );
         $credentials     = $this->credentials;
         include KEYCDN_OFFLOAD_PATH . 'templates/settings-page.php';
     }

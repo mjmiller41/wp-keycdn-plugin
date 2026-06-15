@@ -29,8 +29,8 @@ if ( ! defined( 'ABSPATH' ) ) {
                 <th scope="row"><label for="keycdn_zone_url"><?php esc_html_e( 'Zone URL', 'wp-keycdn-offload' ); ?></label></th>
                 <td>
                     <input type="url" id="keycdn_zone_url" name="keycdn_offload_zone_url"
-                        value="<?php echo esc_attr( defined( 'KEYCDN_ZONE_URL' ) ? KEYCDN_ZONE_URL : get_option( 'keycdn_offload_zone_url', '' ) ); ?>"
-                        class="regular-text" <?php echo $using_constants ? 'readonly' : ''; ?>>
+                        value="<?php echo esc_attr( ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL ) ? KEYCDN_ZONE_URL : get_option( 'keycdn_offload_zone_url', '' ) ); ?>"
+                        class="regular-text" <?php echo ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL ) ? 'readonly' : ''; ?>>
                     <p class="description"><?php esc_html_e( 'e.g. https://yourzone-xyz.kxcdn.com', 'wp-keycdn-offload' ); ?></p>
                 </td>
             </tr>
@@ -43,10 +43,10 @@ if ( ! defined( 'ABSPATH' ) ) {
             <tr>
                 <th scope="row"><label for="keycdn_ftp_user"><?php esc_html_e( 'FTP Username', 'wp-keycdn-offload' ); ?></label></th>
                 <td><input type="text" id="keycdn_ftp_user" name="keycdn_offload_ftp_user"
-                    value="<?php echo esc_attr( defined( 'KEYCDN_FTP_USER' ) ? KEYCDN_FTP_USER : get_option( 'keycdn_offload_ftp_user', '' ) ); ?>"
-                    class="regular-text" <?php echo defined( 'KEYCDN_FTP_USER' ) ? 'readonly' : ''; ?> autocomplete="off"></td>
+                    value="<?php echo esc_attr( ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER ) ? KEYCDN_FTP_USER : get_option( 'keycdn_offload_ftp_user', '' ) ); ?>"
+                    class="regular-text" <?php echo ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER ) ? 'readonly' : ''; ?> autocomplete="off"></td>
             </tr>
-            <?php if ( ! defined( 'KEYCDN_FTP_PASS' ) ) : ?>
+            <?php if ( ! ( defined( 'KEYCDN_FTP_PASS' ) && '' !== KEYCDN_FTP_PASS ) ) : ?>
             <tr>
                 <th scope="row"><label for="keycdn_ftp_pass_new"><?php esc_html_e( 'FTP Password', 'wp-keycdn-offload' ); ?></label></th>
                 <td>
