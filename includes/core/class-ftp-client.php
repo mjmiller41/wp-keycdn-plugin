@@ -156,8 +156,8 @@ class FtpClient {
      * ftp_* data-channel operations hang in Docker/NAT environments.
      */
     public function list_dir( string $remote_dir ): array {
-        $url = 'ftp://' . $this->credentials->get_ftp_host()
-             . '/' . ltrim( rtrim( $remote_dir, '/' ), '/' ) . '/';
+        $path = trim( $remote_dir, '/' );
+        $url  = 'ftp://' . $this->credentials->get_ftp_host() . '/' . ( $path ? $path . '/' : '' );
 
         $base_opts = [
             CURLOPT_USERPWD        => $this->credentials->get_ftp_user() . ':' . $this->credentials->get_ftp_pass(),
