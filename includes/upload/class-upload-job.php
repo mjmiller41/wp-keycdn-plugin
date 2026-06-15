@@ -110,6 +110,10 @@ class UploadJob {
             // Row is stuck in UPLOADING from a prior job that crashed before writing FAILED.
             // Reset to FAILED so the FAILED → UPLOADING transition below is valid.
             $this->manifest->transition_state( $row_id, StateMachine::FAILED );
+        } elseif ( $current_state === StateMachine::VERIFYING ) {
+            // Row is stuck in VERIFYING from a prior job that crashed after ftp_size.
+            // VERIFYING → UPLOADING is not a valid transition; go through FAILED first.
+            $this->manifest->transition_state( $row_id, StateMachine::FAILED );
         }
 
         $this->manifest->transition_state( $row_id, StateMachine::UPLOADING );

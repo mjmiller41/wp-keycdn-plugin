@@ -68,7 +68,7 @@ class Admin {
             return;
         }
         $ftp   = get_transient( 'keycdn_ftp_status' );
-        $color = ! $ftp ? '#999999' : ( $ftp['ok'] ? '#46b450' : '#dc3232' );
+        $color = ! $ftp ? '#999999' : ( ( $ftp['ok'] ?? null ) ? '#46b450' : '#dc3232' );
         $bar->add_node( [
             'id'    => 'keycdn-offload-status',
             'title' => '<span id="keycdn-bar-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' . esc_attr( $color ) . ';margin-right:5px;vertical-align:middle;"></span>'
@@ -79,18 +79,19 @@ class Admin {
     }
 
     public function enqueue_scripts( string $hook ): void {
-        // Load on all admin pages — updates admin bar status dot.
-        wp_enqueue_script(
-            'keycdn-offload-admin-status',
-            KEYCDN_OFFLOAD_URL . 'assets/js/admin-status.js',
-            [ 'jquery' ],
-            KEYCDN_OFFLOAD_VERSION,
-            true
-        );
-        wp_localize_script( 'keycdn-offload-admin-status', 'keyCdnAdmin', [
-            'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-            'nonce'   => wp_create_nonce( 'keycdn_admin_status' ),
-        ] );
+        if ( current_user_can( 'manage_options' ) ) {
+            wp_enqueue_script(
+                'keycdn-offload-admin-status',
+                KEYCDN_OFFLOAD_URL . 'assets/js/admin-status.js',
+                [ 'jquery' ],
+                KEYCDN_OFFLOAD_VERSION,
+                true
+            );
+            wp_localize_script( 'keycdn-offload-admin-status', 'keyCdnAdmin', [
+                'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+                'nonce'   => wp_create_nonce( 'keycdn_admin_status' ),
+            ] );
+        }
 
         if ( 'keycdn-offload_page_keycdn-offload-bulk' === $hook ) {
             wp_enqueue_script(

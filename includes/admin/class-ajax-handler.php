@@ -151,11 +151,12 @@ class AjaxHandler {
 
         $scan_jobs = 0;
         if ( function_exists( 'as_get_scheduled_actions' ) ) {
-            $pending = as_get_scheduled_actions(
-                [ 'hook' => 'keycdn_scan_cdn_page', 'status' => 'pending', 'per_page' => -1 ],
-                'ids'
-            );
-            $scan_jobs = count( $pending );
+            foreach ( [ 'pending', 'in-progress' ] as $as_status ) {
+                $scan_jobs += count( as_get_scheduled_actions(
+                    [ 'hook' => 'keycdn_scan_cdn_page', 'status' => $as_status, 'per_page' => 100 ],
+                    'ids'
+                ) );
+            }
         }
 
         wp_send_json_success( [
@@ -172,9 +173,6 @@ class AjaxHandler {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
         }
-        $progress          = $this->bulk->get_progress();
-        $total             = max( 1, $progress['total'] );
-        $progress['percent'] = round( ( $progress['completed'] / $total ) * 100, 1 );
-        wp_send_json_success( $progress );
+        wp_send_json_success( $this->bulk->get_progress() );
     }
 }

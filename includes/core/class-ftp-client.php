@@ -29,6 +29,10 @@ class FtpClient {
         for ( $attempt = 1; $attempt <= $max_retries; $attempt++ ) {
             $conn = @ftp_ssl_connect( $host, 21, 30 );
             if ( false === $conn ) {
+                if ( $attempt < $max_retries ) {
+                    sleep( 3 );
+                    continue;
+                }
                 throw new FtpException( "Could not connect to FTP host: {$host}" );
             }
 
@@ -123,6 +127,12 @@ class FtpClient {
     public function verify( string $remote_path, int $expected_bytes ): bool {
         $this->connect();
         $remote_size = @ftp_size( $this->conn, $remote_path );
+        if ( $remote_size < 0 ) {
+            // Control channel may have gone idle during a long cURL upload; reconnect and retry once.
+            $this->disconnect();
+            $this->connect();
+            $remote_size = @ftp_size( $this->conn, $remote_path );
+        }
         if ( $remote_size < 0 ) {
             return false;
         }

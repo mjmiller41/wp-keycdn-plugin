@@ -23,6 +23,9 @@ class BulkOffload {
         update_option( 'keycdn_offload_bulk_completed', 0 );
         update_option( 'keycdn_offload_bulk_failed',    0 );
 
+        // Snapshot the confirmed count at start so get_progress() can report per-run progress.
+        update_option( 'keycdn_offload_bulk_initial_confirmed', count( $this->get_offloaded_attachment_ids() ) );
+
         // Count total un-offloaded attachments for the progress display.
         $total = $this->count_unoffloaded();
         update_option( 'keycdn_offload_bulk_total', $total );
@@ -70,25 +73,44 @@ class BulkOffload {
     }
 
     public function get_progress(): array {
+        $status = get_option( 'keycdn_offload_bulk_status', 'idle' );
+        $total  = (int) get_option( 'keycdn_offload_bulk_total', 0 );
+
+        // Skip DB queries when no bulk run is active or complete.
+        if ( 'idle' === $status ) {
+            return [
+                'status'    => 'idle',
+                'total'     => 0,
+                'completed' => 0,
+                'failed'    => 0,
+                'percent'   => 0.0,
+            ];
+        }
+
         global $wpdb;
         $table   = Manifest::table_name();
         $blog_id = (int) get_current_blog_id();
+        $initial = (int) get_option( 'keycdn_offload_bulk_initial_confirmed', 0 );
 
         $confirmed_in = "'" . implode( "','", [ StateMachine::CONFIRMED, StateMachine::LOCAL_REMOVED ] ) . "'";
         $failed_in    = "'" . implode( "','", [ StateMachine::FAILED, StateMachine::QUARANTINED ] ) . "'";
 
-        $completed = (int) $wpdb->get_var(
+        $current_confirmed = (int) $wpdb->get_var(
             "SELECT COUNT(DISTINCT attachment_id) FROM {$table} WHERE state IN ({$confirmed_in}) AND blog_id = {$blog_id}"
         );
         $failed = (int) $wpdb->get_var(
             "SELECT COUNT(DISTINCT attachment_id) FROM {$table} WHERE state IN ({$failed_in}) AND blog_id = {$blog_id}"
         );
 
+        $completed = max( 0, $current_confirmed - $initial );
+        $percent   = $total > 0 ? round( ( $completed / $total ) * 100, 1 ) : 0.0;
+
         return [
-            'status'    => get_option( 'keycdn_offload_bulk_status', 'idle' ),
-            'total'     => (int) get_option( 'keycdn_offload_bulk_total', 0 ),
+            'status'    => $status,
+            'total'     => $total,
             'completed' => $completed,
             'failed'    => $failed,
+            'percent'   => $percent,
         ];
     }
 
