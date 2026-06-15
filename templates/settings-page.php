@@ -2,23 +2,9 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-/** @var bool $using_constants */
 ?>
 <div class="wrap">
     <h1><?php esc_html_e( 'KeyCDN Offload — Settings', 'wp-keycdn-offload' ); ?></h1>
-
-    <?php if ( $using_constants ) : ?>
-        <div class="notice notice-info inline">
-            <p>
-                <?php esc_html_e( 'FTP credentials and Zone URL are defined as constants in wp-config.php and cannot be edited here.', 'wp-keycdn-offload' ); ?>
-                <?php if ( $credentials->is_configured() ) : ?>
-                    <span style="color:#46b450;font-weight:600;">&#10003; <?php esc_html_e( 'Credentials configured.', 'wp-keycdn-offload' ); ?></span>
-                <?php else : ?>
-                    <span style="color:#dc3232;font-weight:600;">&#10007; <?php esc_html_e( 'Credentials incomplete — check KEYCDN_ZONE_URL, KEYCDN_FTP_USER, and KEYCDN_FTP_PASS in wp-config.php.', 'wp-keycdn-offload' ); ?></span>
-                <?php endif; ?>
-            </p>
-        </div>
-    <?php endif; ?>
 
     <form method="post" action="options.php">
         <?php settings_fields( 'keycdn_offload_settings' ); ?>
@@ -29,8 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
                 <th scope="row"><label for="keycdn_zone_url"><?php esc_html_e( 'Zone URL', 'wp-keycdn-offload' ); ?></label></th>
                 <td>
                     <input type="url" id="keycdn_zone_url" name="keycdn_offload_zone_url"
-                        value="<?php echo esc_attr( ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL ) ? KEYCDN_ZONE_URL : get_option( 'keycdn_offload_zone_url', '' ) ); ?>"
-                        class="regular-text" <?php echo ( defined( 'KEYCDN_ZONE_URL' ) && '' !== KEYCDN_ZONE_URL ) ? 'readonly' : ''; ?>>
+                        value="<?php echo esc_attr( get_option( 'keycdn_offload_zone_url', '' ) ); ?>"
+                        class="regular-text">
                     <p class="description"><?php esc_html_e( 'e.g. https://yourzone-xyz.kxcdn.com', 'wp-keycdn-offload' ); ?></p>
                 </td>
             </tr>
@@ -43,10 +29,9 @@ if ( ! defined( 'ABSPATH' ) ) {
             <tr>
                 <th scope="row"><label for="keycdn_ftp_user"><?php esc_html_e( 'FTP Username', 'wp-keycdn-offload' ); ?></label></th>
                 <td><input type="text" id="keycdn_ftp_user" name="keycdn_offload_ftp_user"
-                    value="<?php echo esc_attr( ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER ) ? KEYCDN_FTP_USER : get_option( 'keycdn_offload_ftp_user', '' ) ); ?>"
-                    class="regular-text" <?php echo ( defined( 'KEYCDN_FTP_USER' ) && '' !== KEYCDN_FTP_USER ) ? 'readonly' : ''; ?> autocomplete="off"></td>
+                    value="<?php echo esc_attr( get_option( 'keycdn_offload_ftp_user', '' ) ); ?>"
+                    class="regular-text" autocomplete="off"></td>
             </tr>
-            <?php if ( ! ( defined( 'KEYCDN_FTP_PASS' ) && '' !== KEYCDN_FTP_PASS ) ) : ?>
             <tr>
                 <th scope="row"><label for="keycdn_ftp_pass_new"><?php esc_html_e( 'FTP Password', 'wp-keycdn-offload' ); ?></label></th>
                 <td>
@@ -55,7 +40,6 @@ if ( ! defined( 'ABSPATH' ) ) {
                     <p class="description"><?php esc_html_e( 'Leave blank to keep the existing password.', 'wp-keycdn-offload' ); ?></p>
                 </td>
             </tr>
-            <?php endif; ?>
             <tr>
                 <th scope="row"><?php esc_html_e( 'Test Connection', 'wp-keycdn-offload' ); ?></th>
                 <td>
@@ -91,13 +75,6 @@ if ( ! defined( 'ABSPATH' ) ) {
                     <input type="checkbox" name="keycdn_offload_remove_local" value="1" <?php checked( get_option( 'keycdn_offload_remove_local', false ) ); ?>>
                     <?php esc_html_e( 'Move local files to quarantine after confirmed CDN upload (recommended: leave off until you have verified the CDN is working)', 'wp-keycdn-offload' ); ?>
                 </label></td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="keycdn_large_file_mb"><?php esc_html_e( 'Large File Threshold (MB)', 'wp-keycdn-offload' ); ?></label></th>
-                <td><input type="number" id="keycdn_large_file_mb" name="keycdn_offload_large_file_mb" min="1" max="5000"
-                    value="<?php echo esc_attr( get_option( 'keycdn_offload_large_file_mb', 50 ) ); ?>" class="small-text">
-                    <p class="description"><?php esc_html_e( 'Files above this size are streamed via ftp_fput() to avoid memory limits.', 'wp-keycdn-offload' ); ?></p>
-                </td>
             </tr>
             <tr>
                 <th scope="row"><label for="keycdn_trash_ttl"><?php esc_html_e( 'Quarantine TTL (days)', 'wp-keycdn-offload' ); ?></label></th>

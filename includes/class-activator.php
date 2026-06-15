@@ -36,7 +36,6 @@ class Activator {
             'keycdn_offload_auto_offload'        => true,
             'keycdn_offload_remove_local'        => false,
             'keycdn_offload_trash_ttl_days'      => 30,
-            'keycdn_offload_large_file_mb'       => 50,
             'keycdn_offload_resumable'           => false,
             'keycdn_offload_woo_compat'          => true,
             'keycdn_offload_bulk_status'         => 'idle',
