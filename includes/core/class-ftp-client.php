@@ -162,9 +162,10 @@ class FtpClient {
     }
 
     /**
-     * List a remote directory via cURL MLSD, with NLST fallback.
-     * Uses cURL (not PHP ftp_* functions) for the same reason put() does: PHP's
-     * ftp_* data-channel operations hang in Docker/NAT environments.
+     * List a remote directory via cURL, trying three formats in order:
+     * 1. MLSD  — richest metadata (type, size); may fail on some servers/contexts.
+     * 2. LIST  — Unix ls -l format; first char 'd' = directory; cURL default.
+     * 3. NLST  — filenames only; last resort; everything treated as file.
      */
     public function list_dir( string $remote_dir ): array {
         $path = trim( $remote_dir, '/' );
@@ -178,18 +179,33 @@ class FtpClient {
             CURLOPT_TIMEOUT        => 30,
         ];
 
-        // Try MLSD — richest metadata (type, size).
+        // 1. MLSD — richest metadata.
         $ch = curl_init( $url );
         curl_setopt_array( $ch, $base_opts + [ CURLOPT_CUSTOMREQUEST => 'MLSD' ] );
         $output = curl_exec( $ch );
         $err    = curl_error( $ch );
         curl_close( $ch );
-
         if ( $output && ! $err ) {
-            return $this->parse_mlsd( (string) $output );
+            $entries = $this->parse_mlsd( (string) $output );
+            if ( ! empty( $entries ) ) {
+                return $entries;
+            }
         }
 
-        // Fall back to NLST — just filenames, no type info.
+        // 2. LIST — cURL default (no CURLOPT_FTPLISTONLY), returns Unix ls -l format.
+        $ch = curl_init( $url );
+        curl_setopt_array( $ch, $base_opts );
+        $output = curl_exec( $ch );
+        $err    = curl_error( $ch );
+        curl_close( $ch );
+        if ( $output && ! $err ) {
+            $entries = $this->parse_list( (string) $output );
+            if ( ! empty( $entries ) ) {
+                return $entries;
+            }
+        }
+
+        // 3. NLST — filenames only; no type info; everything treated as file.
         $ch = curl_init( $url );
         curl_setopt_array( $ch, $base_opts + [ CURLOPT_FTPLISTONLY => true ] );
         $output = curl_exec( $ch );
@@ -202,6 +218,31 @@ class FtpClient {
 
         $names = array_filter( array_map( 'trim', explode( "\n", (string) $output ) ) );
         return array_map( fn( $n ) => [ 'name' => basename( $n ), 'type' => 'file' ], array_values( $names ) );
+    }
+
+    /** Parse Unix ls -l (LIST) output into [ 'name', 'type', 'size' ] entries. */
+    private function parse_list( string $output ): array {
+        $entries = [];
+        foreach ( explode( "\n", $output ) as $line ) {
+            $line = trim( $line );
+            if ( ! $line ) {
+                continue;
+            }
+            $parts = preg_split( '/\s+/', $line, 9 );
+            if ( count( $parts ) < 9 ) {
+                continue;
+            }
+            $name = $parts[8];
+            if ( in_array( $name, [ '.', '..' ], true ) ) {
+                continue;
+            }
+            $entries[] = [
+                'name' => $name,
+                'type' => str_starts_with( $parts[0], 'd' ) ? 'dir' : 'file',
+                'size' => (int) $parts[4],
+            ];
+        }
+        return $entries;
     }
 
     /** Parse an MLSD response into the same [ 'name', 'type', 'size' ] shape used elsewhere. */
