@@ -140,41 +140,31 @@ Then in WordPress: **Plugins → Add New → Upload Plugin** → choose the zip 
 
 ## 4. Configure Credentials
 
-You have two options. **Option A is more secure.**
+Credentials are entered in the plugin settings screen after activation (see Part 5, Step 3). The plugin stores the FTP password encrypted in the database using AES-256-CTR.
 
-### Option A — Constants in wp-config.php (recommended)
+> **Recommended:** Define a stable encryption key in `wp-config.php` so the stored password survives WordPress salt rotations:
+>
+> ```php
+> // Must never change after first activation
+> define( 'KEYCDN_ENCRYPTION_KEY',  'a-long-random-string-change-this' );
+> define( 'KEYCDN_ENCRYPTION_SALT', 'another-long-random-string-change-this' );
+> ```
+>
+> Generate the random strings with:
+>
+> ```bash
+> php -r "echo bin2hex(random_bytes(32)) . PHP_EOL; echo bin2hex(random_bytes(32)) . PHP_EOL;"
+> ```
+>
+> Without these constants the plugin falls back to WordPress's built-in salts — rotating those salts will permanently break decryption of your stored password.
 
-Open `wp-config.php` on your server and add these lines above the `/* That's all, stop editing! */` line:
-
+**Power users:** If you prefer to keep credentials entirely out of the database, you can define them as constants in `wp-config.php` instead and they will take precedence over anything entered in the UI:
 ```php
-// KeyCDN Media Offload
 define( 'KEYCDN_ZONE_URL',  'https://mysite-media-xyz.kxcdn.com' );
 define( 'KEYCDN_FTP_HOST',  'ftp.keycdn.com' );
 define( 'KEYCDN_FTP_USER',  'mysite-ftp' );
 define( 'KEYCDN_FTP_PASS',  'your-subuser-password' );
-
-// Encryption key for any DB-stored options (must never change after first activation)
-define( 'KEYCDN_ENCRYPTION_KEY',  'a-long-random-string-change-this' );
-define( 'KEYCDN_ENCRYPTION_SALT', 'another-long-random-string-change-this' );
 ```
-
-Generate the random strings with:
-
-```bash
-php -r "echo bin2hex(random_bytes(32)) . PHP_EOL; echo bin2hex(random_bytes(32)) . PHP_EOL;"
-```
-
-Lock down `wp-config.php`:
-
-```bash
-chmod 440 /path/to/wordpress/wp-config.php
-```
-
-### Option B — Admin UI (credentials stored encrypted in database)
-
-Skip the constants above. Enter credentials in the plugin settings screen after activation (see Part 5, Step 3).
-
-> **Warning:** If you use Option B, define `KEYCDN_ENCRYPTION_KEY` and `KEYCDN_ENCRYPTION_SALT` in `wp-config.php` anyway. Without them the plugin falls back to WordPress's `LOGGED_IN_KEY`/`LOGGED_IN_SALT` salts — rotating those salts will permanently break decryption of your stored password.
 
 ---
 
@@ -225,7 +215,7 @@ wp eval "
 
 Both lines must say `OK`. If either says `MISSING`, Action Scheduler was not active when the plugin was activated. Activate Action Scheduler first, then deactivate and reactivate this plugin.
 
-### Step 3 — Configure via admin UI (skip if using wp-config.php constants)
+### Step 3 — Enter credentials and configure settings
 
 Go to **KeyCDN Offload → Settings**:
 
@@ -237,7 +227,6 @@ Go to **KeyCDN Offload → Settings**:
 | FTP Password              | Your subuser password                             |
 | Auto-Offload on Upload    | ✅ Checked                                        |
 | Remove Local Files        | ☐ Unchecked (leave off until testing is complete) |
-| Large File Threshold      | `50` MB                                           |
 | Quarantine TTL            | `30` days                                         |
 | WooCommerce Compatibility | ✅ Checked (if WooCommerce is active)             |
 
@@ -475,7 +464,7 @@ wp action-scheduler run --group=keycdn-offload --limit=25
 | ------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ftp_ssl_connect` returns false                         | PHP FTP extension missing SSL support                     | Rebuild PHP with `--with-openssl` or install `php-ftp` from the distro repo                                                                  |
 | AS jobs stuck in Pending                                | WP-Cron disabled or not firing                            | Add a real server cron: `*/5 * * * * php /path/to/wp-cron.php`                                                                               |
-| `Configured: NO`                                        | Credentials not saved or constants not defined            | Recheck constants in `wp-config.php` or re-enter password in Settings                                                                        |
+| `Configured: NO`                                        | Credentials not saved or incorrect                        | Re-enter Zone URL, FTP Username, and FTP Password in **KeyCDN Offload → Settings** and save                                                   |
 | Remote file size = 0 after upload                       | PASV mode issue or firewall blocking data port range      | Confirm outbound TCP ports 49152–65535 are allowed; plugin always calls `ftp_pasv(true)`                                                     |
 | URLs not rewriting to CDN                               | Manifest rows not yet in `confirmed` state                | Run `wp action-scheduler run --group=keycdn-offload` to flush the queue; check manifest states                                               |
 | `MISSING` on reconcile / purge-trash jobs at activation | Action Scheduler was not active when plugin was activated | Activate Action Scheduler, then deactivate and reactivate this plugin                                                                        |
@@ -529,5 +518,5 @@ wp-keycdn-plugin/
 - **Action Scheduler** is the job spine — every FTP operation runs asynchronously in a background worker, never blocking a web request. Jobs throw exceptions on failure so AS records them and enables retry.
 - **Upload verification** uses `ftp_size()` compared to local `filesize()` before advancing to `confirmed` state. A zero-byte remote file is treated as a failure.
 - **Soft-delete quarantine** (`_cdn_trash/`) means local files are never permanently deleted until 30 days after the CDN copy is confirmed — giving a recovery window for CDN failures.
-- **Credentials** are read from `wp-config.php` constants first; the admin UI is a fallback that stores an AES-256-CTR encrypted value in `wp_options`.
+- **Credentials** are entered in the admin settings UI and stored as an AES-256-CTR encrypted value in `wp_options`. Power users can override any credential with a `wp-config.php` constant (`KEYCDN_ZONE_URL`, `KEYCDN_FTP_HOST`, `KEYCDN_FTP_USER`, `KEYCDN_FTP_PASS`) and it will silently take precedence.
 - **URL rewriting** checks the manifest at runtime — only confirmed/local_removed rows get CDN URLs, so partially-uploaded attachments always fall back to local URLs.
