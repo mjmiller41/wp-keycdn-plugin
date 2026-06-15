@@ -47,7 +47,7 @@ class FtpClient {
             restore_error_handler();
 
             if ( ! $login_ok ) {
-                ftp_close( $conn );
+                @ftp_close( $conn );
                 if ( $ftp_warning && strpos( $ftp_warning, '421' ) !== false ) {
                     if ( $attempt < $max_retries ) {
                         sleep( 3 );
@@ -62,7 +62,7 @@ class FtpClient {
             }
 
             if ( ! @ftp_pasv( $conn, true ) ) {
-                ftp_close( $conn );
+                @ftp_close( $conn );
                 throw new FtpException( 'Failed to enable passive mode.' );
             }
             // Needed for FTPS behind NAT — prevents server returning its internal IP.
